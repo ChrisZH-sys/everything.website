@@ -35,128 +35,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 
-type Place = {
-  id: number;
-  name: string;
-  category: "吃" | "喝" | "玩" | "看" | "逛";
-  type: string;
-  area: string;
-  duration: string;
-  walking: string;
-  baseMatch: number;
-  moods: string[];
-  tags: string[];
-  why: string;
-  watchout: string;
-  x: number;
-  y: number;
-  color: string;
-};
-
-const places: Place[] = [
-  {
-    id: 1,
-    name: "武康大楼与街角观察点",
-    category: "看",
-    type: "建筑 · 城市观察",
-    area: "衡复样板区",
-    duration: "30–60分钟",
-    walking: "步行友好",
-    baseMatch: 96,
-    moods: ["有故事", "松弛"],
-    tags: ["海派建筑", "适合独处", "免费"],
-    why: "与你偏好的“有故事、可慢慢看”高度一致，适合作为散步起点。",
-    watchout: "周末午后人流较集中。",
-    x: 30,
-    y: 31,
-    color: "#d9593f",
-  },
-  {
-    id: 2,
-    name: "复兴西路安静散步段",
-    category: "逛",
-    type: "街区 · City Walk",
-    area: "衡复样板区",
-    duration: "60–90分钟",
-    walking: "约2.4公里",
-    baseMatch: 93,
-    moods: ["松弛", "小众"],
-    tags: ["梧桐街区", "低商业感", "慢节奏"],
-    why: "商业密度较低，适合在没有明确目的时随意走走。",
-    watchout: "沿途休息点分布不均。",
-    x: 46,
-    y: 48,
-    color: "#247167",
-  },
-  {
-    id: 3,
-    name: "湖南路社区小馆样本",
-    category: "吃",
-    type: "社区餐饮 · 样本",
-    area: "衡复样板区",
-    duration: "60–90分钟",
-    walking: "距散步段8分钟",
-    baseMatch: 91,
-    moods: ["松弛", "有故事"],
-    tags: ["本地口味", "社区感", "人均适中"],
-    why: "更接近日常生活，适合希望避开热门榜单的用餐场景。",
-    watchout: "样板数据，上线前需完成商户核验。",
-    x: 53,
-    y: 35,
-    color: "#d99a32",
-  },
-  {
-    id: 4,
-    name: "永康路咖啡休息点样本",
-    category: "喝",
-    type: "咖啡 · 样本",
-    area: "衡复样板区",
-    duration: "45–75分钟",
-    walking: "距地铁约9分钟",
-    baseMatch: 88,
-    moods: ["热闹", "松弛"],
-    tags: ["街边座位", "适合聊天", "下午"],
-    why: "适合把半日路线拆成两段，在中途留出一段不赶时间的停顿。",
-    watchout: "临街座位可能较嘈杂。",
-    x: 68,
-    y: 58,
-    color: "#8c664d",
-  },
-  {
-    id: 5,
-    name: "上海交响乐团音乐厅",
-    category: "玩",
-    type: "演出 · 建筑",
-    area: "衡复样板区",
-    duration: "约2小时",
-    walking: "室内为主",
-    baseMatch: 89,
-    moods: ["有故事", "小众"],
-    tags: ["夜间", "音乐", "需看排期"],
-    why: "适合作为晚间主活动，与附近用餐或散步自然衔接。",
-    watchout: "演出与开放信息请以官方渠道为准。",
-    x: 73,
-    y: 29,
-    color: "#7d5aa6",
-  },
-  {
-    id: 6,
-    name: "衡山公园慢停留点",
-    category: "逛",
-    type: "公园 · 休息",
-    area: "衡复样板区",
-    duration: "30–60分钟",
-    walking: "低活动量",
-    baseMatch: 86,
-    moods: ["松弛", "小众"],
-    tags: ["绿地", "免费", "家人友好"],
-    why: "适合降低路线密度，也适合作为带家人出行时的缓冲点。",
-    watchout: "体验受天气影响较大。",
-    x: 38,
-    y: 71,
-    color: "#568056",
-  },
-];
+import { ALL_AREAS, areas, checkedAt, places, validSavedIds, type Place } from "@/lib/places";
 
 const categories = ["全部", "吃", "喝", "玩", "看", "逛"];
 const moods = ["松弛", "小众", "有故事", "热闹"];
@@ -214,14 +93,14 @@ export default function Home() {
   const [savedIds, setSavedIds] = useState<number[]>([]);
   const [profileOpen, setProfileOpen] = useState(false);
   const [showSavedOnly, setShowSavedOnly] = useState(false);
-  const [area, setArea] = useState("衡复样板区");
+  const [area, setArea] = useState(ALL_AREAS);
   const [reasonOpen, setReasonOpen] = useState(false);
 
   useEffect(() => {
     const raw = window.localStorage.getItem("shanghai-guide-saved");
     if (raw) {
       try {
-        setSavedIds(JSON.parse(raw));
+        setSavedIds(validSavedIds(JSON.parse(raw)));
       } catch {
         setSavedIds([]);
       }
@@ -230,13 +109,13 @@ export default function Home() {
 
   const rankedPlaces = useMemo(() => {
     return places
-      .filter((place) => place.area === area)
+      .filter((place) => area === ALL_AREAS || place.area === area)
       .filter((place) => category === "全部" || place.category === category)
       .filter((place) => !showSavedOnly || savedIds.includes(place.id))
       .filter((place) => {
         const normalized = query.trim().toLowerCase();
         if (!normalized) return true;
-        return [place.name, place.category, place.type, ...place.tags]
+        return [place.name, place.address, place.area, place.category, place.type, ...place.tags]
           .join(" ")
           .toLowerCase()
           .includes(normalized);
@@ -249,8 +128,8 @@ export default function Home() {
   }, [area, category, duration, mood, query, savedIds, showSavedOnly]);
 
   const activePlace =
-    places.find((place) => place.id === activeId) ?? rankedPlaces[0] ?? places[0];
-  const activeMatch = matchDetails(activePlace, mood, duration);
+    rankedPlaces.find((place) => place.id === activeId) ?? rankedPlaces[0];
+  const activeMatch = activePlace ? matchDetails(activePlace, mood, duration) : undefined;
 
   function toggleSaved(id: number) {
     setSavedIds((current) => {
@@ -314,7 +193,7 @@ export default function Home() {
             <input
               aria-label="搜索地点、街区或体验"
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="搜地点、街区，或输入“安静地走走”"
+              placeholder="搜地点、地址或标签，例如“书店”"
               type="search"
               value={query}
             />
@@ -323,9 +202,9 @@ export default function Home() {
             </button>
           </div>
 
-          <ContextPicker label="范围" value={area} options={["衡复样板区"]}
+          <ContextPicker label="范围" value={area} options={areas}
             onChange={setArea} icon={<MapPin aria-hidden="true" />}
-            note="当前仅覆盖衡复样板区的 6 个示例地点，暂不支持上海全市或按距离搜索。" />
+            note={`当前收录${places.length}个真实地点，按街区分组；暂不支持距离搜索。`} />
           <ContextPicker label="时间" value={duration} options={durations}
             onChange={setDuration} icon={<Clock3 aria-hidden="true" />} />
           <ContextPicker label="同行" value={companion} options={companions}
@@ -409,94 +288,49 @@ export default function Home() {
         <div className="map-panel">
           <div className="map-toolbar">
             <div>
-              <strong>衡复—淮海样板区</strong>
-              <span>已深度标注 6 个首版样本</span>
+              <strong>{area} · 地点索引</strong>
+              <span>已收录 {places.length} 个真实地点</span>
             </div>
-            <button type="button">
-              <Navigation />
-              回到样板区
+            <button type="button" onClick={() => {
+              setArea(ALL_AREAS); setCategory("全部"); setQuery(""); setShowSavedOnly(false);
+            }}>
+              <Navigation aria-hidden="true" />
+              查看全部
             </button>
           </div>
-
-          <div className="schematic-map" aria-label="衡复样板区示意地图">
-            <svg
-              aria-hidden="true"
-              className="street-grid"
-              preserveAspectRatio="none"
-              viewBox="0 0 100 100"
-            >
-              <path d="M-8 21 C18 18, 31 25, 108 18" />
-              <path d="M-5 63 C22 58, 52 68, 107 57" />
-              <path d="M5 82 C37 73, 69 86, 105 76" />
-              <path d="M21 -5 C18 24, 30 56, 24 105" />
-              <path d="M58 -4 C54 29, 64 66, 58 103" />
-              <path d="M84 -5 C76 32, 88 57, 81 105" />
-              <path className="minor" d="M-4 42 C20 45, 63 37, 105 43" />
-              <path className="minor" d="M41 -4 C38 31, 44 71, 39 104" />
-              <path className="minor" d="M70 -3 C68 25, 73 69, 72 103" />
-            </svg>
-            <div className="sample-boundary" />
-            <span className="road-label north">延安中路</span>
-            <span className="road-label south">肇嘉浜路</span>
-            <span className="road-label west">华山路</span>
-            <span className="road-label east">瑞金二路</span>
-            <span className="area-label">
-              <small>HIGH-CONFIDENCE AREA</small>
-              衡复深度样板区
-            </span>
-
-            {places.map((place) => (
-              <button
-                aria-label={"查看" + place.name}
-                className={
-                  activePlace.id === place.id
-                    ? "map-marker active"
-                    : "map-marker"
-                }
-                key={place.id}
-                onClick={() => setActiveId(place.id)}
-                style={{
-                  left: String(place.x) + "%",
-                  top: String(place.y) + "%",
-                  "--marker-color": place.color,
-                } as React.CSSProperties}
-                type="button"
-              >
-                <span>{place.id}</span>
-              </button>
-            ))}
-
-            <div className="map-note">
-              <Sparkles />
-              <span>
-                <strong>为什么从这里开始</strong>
-                地点密集、体验差异大，适合校准“好”的不同定义。
-              </span>
+          <div className="place-directory">
+            <p className="directory-note">按当前结果排列，不表示地理位置。点击地点查看地址与资料。</p>
+            <div className="directory-grid" aria-label="地点索引">
+              {rankedPlaces.map((place, index) => (
+                <button type="button" key={place.id} aria-pressed={activePlace?.id === place.id}
+                  onClick={() => setActiveId(place.id)}>
+                  <span className="directory-number">{String(index + 1).padStart(2, "0")}</span>
+                  <span><strong>{place.name}</strong><small>{place.category} · {place.area}</small></span>
+                </button>
+              ))}
             </div>
-
-            <Card className="map-preview">
-              <CardHeader>
-                <Badge variant="outline">{activePlace.type}</Badge>
-                <CardTitle>{activePlace.name}</CardTitle>
-                <CardDescription>{activePlace.area}</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p>{activePlace.why}</p>
-              </CardContent>
-              <CardFooter>
-                <Button size="sm" onClick={() => setReasonOpen(true)}>
-                  查看推荐理由
-                  <ArrowRight />
-                </Button>
-              </CardFooter>
-            </Card>
+            {activePlace ? (
+              <Card className="map-preview directory-preview">
+                <CardHeader>
+                  <Badge variant="outline">{activePlace.type}</Badge>
+                  <CardTitle>{activePlace.name}</CardTitle>
+                  <CardDescription>{activePlace.address}</CardDescription>
+                </CardHeader>
+                <CardContent><p>{activePlace.why}</p></CardContent>
+                <CardFooter>
+                  <Button size="sm" onClick={() => setReasonOpen(true)}>
+                    查看推荐理由与资料 <ArrowRight />
+                  </Button>
+                </CardFooter>
+              </Card>
+            ) : <p className="directory-empty">当前条件下没有地点，请调整筛选。</p>}
           </div>
         </div>
 
         <aside className="results-panel">
           <div className="results-heading">
             <div>
-              <span>为你重新排序</span>
+              <span>按偏好演示排序 · 分数为示例</span>
               <h2>{showSavedOnly ? "已收藏的地点" : "此刻更适合你的去处"}</h2>
             </div>
             <span className="result-count">{rankedPlaces.length} 个结果</span>
@@ -513,6 +347,7 @@ export default function Home() {
                     setCategory("全部");
                     setShowSavedOnly(false);
                     setQuery("");
+                    setArea(ALL_AREAS);
                   }}
                   variant="outline"
                 >
@@ -523,7 +358,7 @@ export default function Home() {
               rankedPlaces.map((place, index) => (
                 <article
                   className={
-                    activePlace.id === place.id
+                    activePlace?.id === place.id
                       ? "place-card active"
                       : "place-card"
                   }
@@ -539,7 +374,7 @@ export default function Home() {
                       } as React.CSSProperties}
                     >
                       <strong>{place.match}</strong>
-                      <small>%</small>
+                      <small>示例</small>
                     </div>
                   </div>
 
@@ -548,7 +383,8 @@ export default function Home() {
                       <Badge variant="secondary">{place.category}</Badge>
                       <span>{place.type}</span>
                     </div>
-                    <h3>{place.name}</h3>
+                    <h3><button type="button" className="place-title-button" onClick={() => { setActiveId(place.id); setReasonOpen(true); }}>{place.name}</button></h3>
+                    <p className="place-address">{place.address}</p>
                     <p className="why-copy">
                       <Sparkles />
                       {place.why}
@@ -569,6 +405,7 @@ export default function Home() {
                       </span>
                     </div>
                     <p className="watchout">留意：{place.watchout}</p>
+                    <button type="button" className="place-details-button" onClick={() => { setActiveId(place.id); setReasonOpen(true); }}>查看详情与来源 <ArrowRight aria-hidden="true" /></button>
                   </div>
 
                   <button
@@ -598,8 +435,8 @@ export default function Home() {
           <div className="confidence-note">
             <Check />
             <span>
-              <strong>首版数据说明</strong>
-              公共地点用于展示产品逻辑；餐饮与咖啡样本将在正式开放前完成人工核验。
+              <strong>{places.length}个真实地点 · 资料查阅于{checkedAt}</strong>
+              名称与地址附来源；部分资料较早，当天营业、价格及排期待复核。标签、停留建议与匹配分为编辑建议或演示。
             </span>
           </div>
         </aside>
@@ -631,20 +468,29 @@ export default function Home() {
             <small>上海试点 · 产品原型</small>
           </span>
         </div>
-        <p>地点与开放信息将在正式上线前逐项核验。</p>
+        <p>名称与地址已按来源整理；开放、价格与排期请出发前复核。</p>
       </footer>
 
-      <Dialog open={reasonOpen} onOpenChange={setReasonOpen}>
+      {activePlace && activeMatch && <Dialog open={reasonOpen} onOpenChange={setReasonOpen}>
         <DialogContent className="reason-dialog" showCloseButton={false}>
           <DialogHeader>
             <DialogTitle>{activePlace.name} · 推荐理由</DialogTitle>
-            <DialogDescription>基于首版示例数据，仅供探索参考。</DialogDescription>
+            <DialogDescription>真实地点资料与编辑建议；当天营业和票务请出发前复核。</DialogDescription>
           </DialogHeader>
           <p>{activePlace.why}</p>
           <dl className="reason-facts">
+            <div><dt>地址</dt><dd>{activePlace.address}</dd></div>
+            <div><dt>开放与营业</dt><dd>{activePlace.opening}</dd></div>
+            <div><dt>费用</dt><dd>{activePlace.cost}</dd></div>
+            <div><dt>资料来源</dt><dd className="source-links">
+              {activePlace.sources.map((source) => <a key={source.url} href={source.url} target="_blank" rel="noopener noreferrer">
+                {source.title}{source.date ? `（资料日期：${source.date}）` : ""} ↗
+              </a>)}
+            </dd></div>
+            <div><dt>资料查阅日期</dt><dd>{activePlace.checkedAt} · 非现场核验；来源链接需联网。</dd></div>
             <div><dt>当前选择</dt><dd>{area} · {duration} · {companion} · {mood}</dd></div>
             <div><dt>体验标签</dt><dd>{activePlace.tags.join(" · ")}</dd></div>
-            <div><dt>预计停留</dt><dd>{activePlace.duration} · {activePlace.walking}</dd></div>
+            <div><dt>停留建议</dt><dd>{activePlace.duration} · {activePlace.walking}</dd></div>
             <div><dt>示例匹配分</dt><dd>{activeMatch.score} / 100（上限 99）</dd></div>
             <div><dt>分数来源</dt><dd>
               预设基础分 {activePlace.baseMatch}；
@@ -656,7 +502,7 @@ export default function Home() {
           <p className="reason-watchout">留意：{activePlace.watchout}</p>
           <DialogClose asChild><Button type="button">关闭推荐理由</Button></DialogClose>
         </DialogContent>
-      </Dialog>
+      </Dialog>}
 
       {profileOpen && (
         <div

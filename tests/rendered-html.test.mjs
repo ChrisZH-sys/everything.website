@@ -31,7 +31,7 @@ test("renders development preview metadata", async () => {
   );
   const html = await response.text();
   assert.match(html, developmentPreviewMeta);
-  for (const label of ["范围：衡复样板区", "时间：半天", "同行：一个人"]) {
+  for (const label of ["范围：衡复及周边", "时间：半天", "同行：一个人"]) {
     assert.match(
       html,
       new RegExp(`<button(?=[^>]*aria-label="${label}")(?=[^>]*aria-expanded="false")[^>]*>`),
@@ -41,4 +41,8 @@ test("renders development preview metadata", async () => {
   assert.match(html, /<button(?=[^>]*aria-pressed="true")[^>]*>半天<\/button>/);
   assert.match(html, /<button(?=[^>]*aria-pressed="true")[^>]*>一个人<\/button>/);
   assert.match(html, /查看推荐理由/);
+  assert.equal((html.match(/<article\b/g) ?? []).length, 30, "默认显示全部30个地点");
+  assert.equal((html.match(/class="place-details-button"/g) ?? []).length, 30, "每个地点可打开详情与来源");
+  assert.match(html, /地点索引/);
+  assert.doesNotMatch(html, /社区小馆样本|咖啡休息点样本|约2.4公里|HIGH-CONFIDENCE AREA/);
 });
