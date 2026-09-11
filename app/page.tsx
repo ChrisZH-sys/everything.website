@@ -22,6 +22,10 @@ import {
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Card,
   CardContent,
@@ -159,6 +163,47 @@ const moods = ["松弛", "小众", "有故事", "热闹"];
 const companions = ["一个人", "两个人", "朋友", "家人"];
 const durations = ["2小时", "半天", "一天"];
 
+function ContextPicker({ label, value, options, onChange, icon, note }: {
+  label: string;
+  value: string;
+  options: string[];
+  onChange: (value: string) => void;
+  icon: React.ReactNode;
+  note?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button type="button" className="context-control" aria-label={`${label}：${value}`}>
+          {icon}
+          <span><small>{label}</small><strong>{value}</strong></span>
+          <ChevronDown aria-hidden="true" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="context-options" align="start" aria-label={`选择${label}`}>
+        <h2>选择{label}</h2>
+        <div role="group" aria-label={`${label}选项`}>
+          {options.map((option) => (
+            <button key={option} type="button" aria-pressed={value === option}
+              onClick={() => { onChange(option); setOpen(false); }}>
+              <span>{option}</span>
+              {value === option && <Check aria-hidden="true" />}
+            </button>
+          ))}
+        </div>
+        {note && <p>{note}</p>}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function matchDetails(place: Place, mood: string, duration: string) {
+  const moodBonus = place.moods.includes(mood) ? 3 : -2;
+  const timeBonus = duration === "2小时" && place.duration.includes("2小时") ? 2 : 0;
+  return { moodBonus, timeBonus, score: Math.min(99, place.baseMatch + moodBonus + timeBonus) };
+}
+
 export default function Home() {
   const [category, setCategory] = useState("全部");
   const [mood, setMood] = useState("松弛");
@@ -169,6 +214,8 @@ export default function Home() {
   const [savedIds, setSavedIds] = useState<number[]>([]);
   const [profileOpen, setProfileOpen] = useState(false);
   const [showSavedOnly, setShowSavedOnly] = useState(false);
+  const [area, setArea] = useState("衡复样板区");
+  const [reasonOpen, setReasonOpen] = useState(false);
 
   useEffect(() => {
     const raw = window.localStorage.getItem("shanghai-guide-saved");
@@ -183,6 +230,7 @@ export default function Home() {
 
   const rankedPlaces = useMemo(() => {
     return places
+      .filter((place) => place.area === area)
       .filter((place) => category === "全部" || place.category === category)
       .filter((place) => !showSavedOnly || savedIds.includes(place.id))
       .filter((place) => {
@@ -195,18 +243,14 @@ export default function Home() {
       })
       .map((place) => ({
         ...place,
-        match: Math.min(
-          99,
-          place.baseMatch +
-            (place.moods.includes(mood) ? 3 : -2) +
-            (duration === "2小时" && place.duration.includes("2小时") ? 2 : 0)
-        ),
+        match: matchDetails(place, mood, duration).score,
       }))
       .sort((a, b) => b.match - a.match);
-  }, [category, duration, mood, query, savedIds, showSavedOnly]);
+  }, [area, category, duration, mood, query, savedIds, showSavedOnly]);
 
   const activePlace =
     places.find((place) => place.id === activeId) ?? rankedPlaces[0] ?? places[0];
+  const activeMatch = matchDetails(activePlace, mood, duration);
 
   function toggleSaved(id: number) {
     setSavedIds((current) => {
@@ -279,30 +323,13 @@ export default function Home() {
             </button>
           </div>
 
-          <div className="context-control">
-            <MapPin />
-            <span>
-              <small>范围</small>
-              <strong>衡复样板区</strong>
-            </span>
-            <ChevronDown />
-          </div>
-          <div className="context-control">
-            <Clock3 />
-            <span>
-              <small>时间</small>
-              <strong>{duration}</strong>
-            </span>
-            <ChevronDown />
-          </div>
-          <div className="context-control">
-            <Users />
-            <span>
-              <small>同行</small>
-              <strong>{companion}</strong>
-            </span>
-            <ChevronDown />
-          </div>
+          <ContextPicker label="范围" value={area} options={["衡复样板区"]}
+            onChange={setArea} icon={<MapPin aria-hidden="true" />}
+            note="当前仅覆盖衡复样板区的 6 个示例地点，暂不支持上海全市或按距离搜索。" />
+          <ContextPicker label="时间" value={duration} options={durations}
+            onChange={setDuration} icon={<Clock3 aria-hidden="true" />} />
+          <ContextPicker label="同行" value={companion} options={companions}
+            onChange={setCompanion} icon={<Users aria-hidden="true" />} />
         </div>
 
         <div className="quick-row">
@@ -311,6 +338,7 @@ export default function Home() {
             {durations.map((item) => (
               <button
                 className={duration === item ? "chip selected" : "chip"}
+                aria-pressed={duration === item}
                 key={item}
                 onClick={() => setDuration(item)}
                 type="button"
@@ -324,6 +352,7 @@ export default function Home() {
             {companions.map((item) => (
               <button
                 className={companion === item ? "chip selected" : "chip"}
+                aria-pressed={companion === item}
                 key={item}
                 onClick={() => setCompanion(item)}
                 type="button"
@@ -363,7 +392,7 @@ export default function Home() {
         </div>
         <div className="toolbar-status">
           <span className="live-dot" />
-          按“{mood} · {duration} · {companion}”重新排序
+          当前选择：{mood} · {duration} · {companion}
           <Button
             className="filter-button"
             onClick={() => setProfileOpen(true)}
@@ -455,7 +484,7 @@ export default function Home() {
                 <p>{activePlace.why}</p>
               </CardContent>
               <CardFooter>
-                <Button size="sm">
+                <Button size="sm" onClick={() => setReasonOpen(true)}>
                   查看推荐理由
                   <ArrowRight />
                 </Button>
@@ -604,6 +633,30 @@ export default function Home() {
         </div>
         <p>地点与开放信息将在正式上线前逐项核验。</p>
       </footer>
+
+      <Dialog open={reasonOpen} onOpenChange={setReasonOpen}>
+        <DialogContent className="reason-dialog" showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle>{activePlace.name} · 推荐理由</DialogTitle>
+            <DialogDescription>基于首版示例数据，仅供探索参考。</DialogDescription>
+          </DialogHeader>
+          <p>{activePlace.why}</p>
+          <dl className="reason-facts">
+            <div><dt>当前选择</dt><dd>{area} · {duration} · {companion} · {mood}</dd></div>
+            <div><dt>体验标签</dt><dd>{activePlace.tags.join(" · ")}</dd></div>
+            <div><dt>预计停留</dt><dd>{activePlace.duration} · {activePlace.walking}</dd></div>
+            <div><dt>示例匹配分</dt><dd>{activeMatch.score} / 100（上限 99）</dd></div>
+            <div><dt>分数来源</dt><dd>
+              预设基础分 {activePlace.baseMatch}；
+              {activeMatch.moodBonus > 0 ? `符合“${mood}”，加 3 分` : `未标注“${mood}”，减 2 分`}；
+              {activeMatch.timeBonus > 0 ? "2 小时活动匹配，加 2 分" : "时间项本次不加分"}。
+            </dd></div>
+          </dl>
+          <p className="reason-note">同行选择已同步，但首版尚未用于评分；以上分数为演示规则计算，并非真实用户评价或到访概率。</p>
+          <p className="reason-watchout">留意：{activePlace.watchout}</p>
+          <DialogClose asChild><Button type="button">关闭推荐理由</Button></DialogClose>
+        </DialogContent>
+      </Dialog>
 
       {profileOpen && (
         <div
