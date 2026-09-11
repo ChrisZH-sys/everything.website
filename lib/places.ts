@@ -2,7 +2,7 @@ export type Category = "吃" | "喝" | "玩" | "看" | "逛";
 export type Source = { title: string; url: string; date?: string };
 export type Place = {
   id: number; name: string; category: Category; type: string; area: string;
-  address: string; duration: string; walking: string; baseMatch: number;
+  address: string; duration: string; walking: string;
   moods: string[]; tags: string[]; why: string; watchout: string;
   opening: string; cost: string; sources: Source[]; checkedAt: string;
 };
@@ -21,11 +21,10 @@ const noodles = gov("黄浦面馆导览", "en-TimeHonored-travelinshanghai/20250
 const books = gov("特色书店导览", "en-BookstoresLibraries/20260422/c2ff0ece50d940838a35422c9629e311.html", "2026-04-22");
 const sinan = gov("思南书局", "en-BookstoresLibraries/20231221/8576791e48014165a74d8be2d17640b6.html", "2025-08-19");
 
-type PlaceInput = Omit<Place, "baseMatch" | "checkedAt" | "opening" | "cost" | "walking"> & Partial<Pick<Place, "opening" | "cost" | "walking">>;
+type PlaceInput = Omit<Place, "checkedAt" | "opening" | "cost" | "walking"> & Partial<Pick<Place, "opening" | "cost" | "walking">>;
 function place(input: PlaceInput): Place {
   return {
-    // Uniform demonstration base: these are not review scores or measured quality.
-    baseMatch: 80, checkedAt,
+    checkedAt,
     opening: "当天开放或营业时间未核实；出发前查看场馆、门店公告。",
     cost: "当前费用未核实；以现场菜单或官方票务为准。",
     walking: "活动量参考：室内为主",

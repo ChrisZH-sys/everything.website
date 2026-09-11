@@ -1,580 +1,197 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import {
-  ArrowRight,
-  Bookmark,
-  Check,
-  ChevronDown,
-  Clock3,
-  Compass,
-  Footprints,
-  Heart,
-  LocateFixed,
-  MapPin,
-  Navigation,
-  Search,
-  SlidersHorizontal,
-  Sparkles,
-  Users,
-  X,
-} from "lucide-react";
-
-import { Badge } from "@/components/ui/badge";
+import { ArrowRight, Bookmark, Check, Clock3, Heart, MapPin, Search, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import {
-  Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-
+import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ALL_AREAS, areas, checkedAt, places, validSavedIds, type Place } from "@/lib/places";
+import { rankPlaces, recommend, shortlist, type Outing, type Recommendation } from "@/lib/recommendations";
 
+const durations: Outing["duration"][] = ["2小时", "半天", "一天"];
+const companions: Outing["companion"][] = ["一个人", "两个人", "朋友", "家人"];
+const moods: Outing["mood"][] = ["松弛", "有故事", "热闹", "小众"];
+const moodLabels = { "松弛": "松弛一点", "有故事": "看点故事", "热闹": "热闹一点", "小众": "换点新鲜" };
 const categories = ["全部", "吃", "喝", "玩", "看", "逛"];
-const moods = ["松弛", "小众", "有故事", "热闹"];
-const companions = ["一个人", "两个人", "朋友", "家人"];
-const durations = ["2小时", "半天", "一天"];
 
-function ContextPicker({ label, value, options, onChange, icon, note }: {
-  label: string;
-  value: string;
-  options: string[];
-  onChange: (value: string) => void;
-  icon: React.ReactNode;
-  note?: string;
+function Choices({ label, value, options, onChange, labels = {} }: {
+  label: string; value: string; options: string[]; onChange: (value: string) => void; labels?: Record<string, string>;
 }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <button type="button" className="context-control" aria-label={`${label}：${value}`}>
-          {icon}
-          <span><small>{label}</small><strong>{value}</strong></span>
-          <ChevronDown aria-hidden="true" />
-        </button>
-      </PopoverTrigger>
-      <PopoverContent className="context-options" align="start" aria-label={`选择${label}`}>
-        <h2>选择{label}</h2>
-        <div role="group" aria-label={`${label}选项`}>
-          {options.map((option) => (
-            <button key={option} type="button" aria-pressed={value === option}
-              onClick={() => { onChange(option); setOpen(false); }}>
-              <span>{option}</span>
-              {value === option && <Check aria-hidden="true" />}
-            </button>
-          ))}
-        </div>
-        {note && <p>{note}</p>}
-      </PopoverContent>
-    </Popover>
-  );
-}
-
-function matchDetails(place: Place, mood: string, duration: string) {
-  const moodBonus = place.moods.includes(mood) ? 3 : -2;
-  const timeBonus = duration === "2小时" && place.duration.includes("2小时") ? 2 : 0;
-  return { moodBonus, timeBonus, score: Math.min(99, place.baseMatch + moodBonus + timeBonus) };
+  return <fieldset className="choice-field">
+    <legend>{label}</legend>
+    <RadioGroup value={value} onValueChange={onChange} className="choice-group" aria-label={label}>
+      {options.map(option => <label className={value === option ? "choice selected" : "choice"} key={option}>
+        <RadioGroupItem value={option} aria-label={labels[option] ?? option} />
+        <span>{labels[option] ?? option}</span>
+      </label>)}
+    </RadioGroup>
+  </fieldset>;
 }
 
 export default function Home() {
-  const [category, setCategory] = useState("全部");
-  const [mood, setMood] = useState("松弛");
-  const [companion, setCompanion] = useState("一个人");
-  const [duration, setDuration] = useState("半天");
-  const [query, setQuery] = useState("");
-  const [activeId, setActiveId] = useState(1);
-  const [savedIds, setSavedIds] = useState<number[]>([]);
-  const [profileOpen, setProfileOpen] = useState(false);
-  const [showSavedOnly, setShowSavedOnly] = useState(false);
+  const [outing, setOuting] = useState<Outing>({ duration: "2小时", companion: "一个人", mood: "松弛" });
   const [area, setArea] = useState(ALL_AREAS);
-  const [reasonOpen, setReasonOpen] = useState(false);
+  const [category, setCategory] = useState("全部");
+  const [query, setQuery] = useState("");
+  const [view, setView] = useState("pick");
+  const [savedIds, setSavedIds] = useState<number[]>([]);
+  const [storageNote, setStorageNote] = useState("");
+  const [detail, setDetail] = useState<Place | null>(null);
+  const [copyNote, setCopyNote] = useState("");
+  const [aboutOpen, setAboutOpen] = useState(false);
 
   useEffect(() => {
-    const raw = window.localStorage.getItem("shanghai-guide-saved");
-    if (raw) {
-      try {
-        setSavedIds(validSavedIds(JSON.parse(raw)));
-      } catch {
-        setSavedIds([]);
-      }
+    try {
+      const raw = window.localStorage.getItem("shanghai-guide-saved");
+      if (raw) setSavedIds(validSavedIds(JSON.parse(raw)));
+    } catch {
+      setStorageNote("当前浏览器无法读取收藏；本次仍可选择和收藏地点。");
     }
   }, []);
 
-  const rankedPlaces = useMemo(() => {
-    return places
-      .filter((place) => area === ALL_AREAS || place.area === area)
-      .filter((place) => category === "全部" || place.category === category)
-      .filter((place) => !showSavedOnly || savedIds.includes(place.id))
-      .filter((place) => {
-        const normalized = query.trim().toLowerCase();
-        if (!normalized) return true;
-        return [place.name, place.address, place.area, place.category, place.type, ...place.tags]
-          .join(" ")
-          .toLowerCase()
-          .includes(normalized);
-      })
-      .map((place) => ({
-        ...place,
-        match: matchDetails(place, mood, duration).score,
-      }))
-      .sort((a, b) => b.match - a.match);
-  }, [area, category, duration, mood, query, savedIds, showSavedOnly]);
+  const ranked = useMemo(() => {
+    const normalized = query.trim().toLowerCase();
+    const filtered = places.filter(p =>
+      (area === ALL_AREAS || p.area === area) &&
+      (category === "全部" || p.category === category) &&
+      (!normalized || [p.name, p.address, p.area, p.type, ...p.tags].join(" ").toLowerCase().includes(normalized)));
+    return rankPlaces(filtered, outing);
+  }, [area, category, query, outing]);
+  const suggestions = useMemo(() => shortlist(ranked), [ranked]);
+  const saved = ranked.filter(r => savedIds.includes(r.place.id));
+  const active = detail ? recommend(detail, outing) : null;
+  const visible = view === "pick" ? suggestions : view === "saved" ? saved : ranked;
+  const hasFilters = area !== ALL_AREAS || category !== "全部" || query.trim() !== "";
 
-  const activePlace =
-    rankedPlaces.find((place) => place.id === activeId) ?? rankedPlaces[0];
-  const activeMatch = activePlace ? matchDetails(activePlace, mood, duration) : undefined;
-
+  function resetFilters() { setArea(ALL_AREAS); setCategory("全部"); setQuery(""); }
   function toggleSaved(id: number) {
-    setSavedIds((current) => {
-      const next = current.includes(id)
-        ? current.filter((item) => item !== id)
-        : [...current, id];
-      window.localStorage.setItem(
-        "shanghai-guide-saved",
-        JSON.stringify(next)
-      );
-      return next;
-    });
+    const next = savedIds.includes(id) ? savedIds.filter(i => i !== id) : [...savedIds, id];
+    setSavedIds(next);
+    try { window.localStorage.setItem("shanghai-guide-saved", JSON.stringify(next)); setStorageNote(""); }
+    catch { setStorageNote("收藏已在本次打开期间保留；当前浏览器不允许跨次保存。"); }
+  }
+  function openDetail(place: Place) { setCopyNote(""); setDetail(place); }
+  async function copyAddress() {
+    if (!detail) return;
+    try { await navigator.clipboard.writeText(detail.name + "，上海市" + detail.address); setCopyNote("地址已复制，可粘贴到你常用的地图中。"); }
+    catch { setCopyNote("复制未完成，请选中或长按下方地址手动复制。"); }
   }
 
-  return (
-    <main className="site-shell">
-      <header className="topbar">
-        <a className="brand" href="#top" aria-label="吃喝玩乐全攻略首页">
-          <span className="brand-mark">沪</span>
-          <span>
-            <strong>吃喝玩乐全攻略</strong>
-            <small>SHANGHAI · BETA</small>
-          </span>
-        </a>
+  function renderCard(result: Recommendation) {
+    const p = result.place;
+    return <article className="decision-card" key={p.id}>
+      <div className="decision-card-top"><Badge variant="secondary">{p.category} · {p.type.split(" · ")[0]}</Badge>
+        <button type="button" className={savedIds.includes(p.id) ? "heart-button saved" : "heart-button"}
+          aria-label={(savedIds.includes(p.id) ? "取消收藏" : "收藏") + p.name}
+          aria-pressed={savedIds.includes(p.id)} onClick={() => toggleSaved(p.id)}><Heart aria-hidden="true" /></button>
+      </div>
+      <h3><button type="button" onClick={() => openDetail(p)}>{p.name}</button></h3>
+      <p className="visit-idea">{p.why}</p>
+      <div className="decision-facts"><span><MapPin aria-hidden="true" />{p.area}</span><span><Clock3 aria-hidden="true" />{p.duration}</span></div>
+      <div className="fit-reasons"><strong>为什么列入这次候选</strong>
+        <ul>{result.reasons.slice(0, 2).map(reason => <li key={reason}>{reason}</li>)}</ul>
+        {!result.reasons.length && <p>符合所选地区或分类；兴趣与同行方式没有明显匹配项。</p>}
+      </div>
+      <p className="decision-caution"><strong>{result.timeFits ? "先留意" : "时间偏紧"}：</strong>{result.caution}</p>
+      <Button className="detail-button" onClick={() => openDetail(p)}>查看详情与地址 <ArrowRight aria-hidden="true" /></Button>
+    </article>;
+  }
 
-        <nav className="top-actions" aria-label="网站导航">
-          <button
-            className={showSavedOnly ? "nav-button active" : "nav-button"}
-            onClick={() => setShowSavedOnly((value) => !value)}
-            type="button"
-          >
-            <Bookmark />
-            已收藏
-            {savedIds.length > 0 && <span>{savedIds.length}</span>}
-          </button>
-          <button
-            className="profile-button"
-            onClick={() => setProfileOpen(true)}
-            type="button"
-          >
-            <span className="profile-dot">C</span>
-            <span className="profile-copy">
-              <small>我的偏好</small>
-              <strong>松弛探索型</strong>
-            </span>
-            <ChevronDown />
-          </button>
-        </nav>
-      </header>
+  return <main className="decision-shell" id="top">
+    <header className="decision-header">
+      <a className="decision-brand" href="#top"><span className="decision-brand-mark">沪</span><span><strong>吃喝玩乐全攻略</strong><small>上海 · 衡复及周边</small></span></a>
+      <button className="plain-button" type="button" onClick={() => setAboutOpen(true)}>推荐怎么来的</button>
+    </header>
 
-      <section className="brief-panel" id="top">
-        <div className="brief-heading">
-          <Badge className="beta-badge">上海试点 · 首版示例数据</Badge>
-          <h1>今天想在上海怎么过？</h1>
-          <p>先说当下的状态，我们再缩小到真正适合你的选择。</p>
+    <section className="decision-start" aria-labelledby="outing-title">
+      <div className="decision-intro"><p className="eyebrow">有空了，去哪里？</p><h1 id="outing-title">这次，想在上海怎么过？</h1>
+        <p>按你的时间和同行方式，先挑几个值得考虑的去处。</p></div>
+      <div className="outing-choices">
+        <Choices label="有多久" value={outing.duration} options={durations} onChange={duration => setOuting(o => ({ ...o, duration: duration as Outing["duration"] }))} />
+        <Choices label="和谁去" value={outing.companion} options={companions} onChange={companion => setOuting(o => ({ ...o, companion: companion as Outing["companion"] }))} />
+        <Choices label="想怎么过" value={outing.mood} options={moods} labels={moodLabels} onChange={mood => setOuting(o => ({ ...o, mood: mood as Outing["mood"] }))} />
+      </div>
+      <details className="extra-filters">
+        <summary><SlidersHorizontal aria-hidden="true" />限定街区、分类，或搜索地点{hasFilters && <span> · 已筛选</span>}</summary>
+        <div className="extra-filter-body">
+          <Choices label="在哪一带" value={area} options={areas} onChange={setArea} />
+          <Choices label="主要想做什么" value={category} options={categories} onChange={setCategory} />
+          <label className="decision-search"><Search aria-hidden="true" /><input type="search" aria-label="搜索地点、地址或标签" placeholder="输入地点、地址或标签，例如“书店”" value={query} onChange={e => setQuery(e.target.value)} /></label>
+          {hasFilters && <button type="button" className="plain-button" onClick={resetFilters}>清除街区、分类和搜索条件</button>}
         </div>
+      </details>
+    </section>
 
-        <div className="brief-controls">
-          <div className="search-control">
-            <Search aria-hidden="true" />
-            <input
-              aria-label="搜索地点、街区或体验"
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="搜地点、地址或标签，例如“书店”"
-              type="search"
-              value={query}
-            />
-            <button type="button" aria-label="使用当前位置">
-              <LocateFixed />
-            </button>
-          </div>
-
-          <ContextPicker label="范围" value={area} options={areas}
-            onChange={setArea} icon={<MapPin aria-hidden="true" />}
-            note={`当前收录${places.length}个真实地点，按街区分组；暂不支持距离搜索。`} />
-          <ContextPicker label="时间" value={duration} options={durations}
-            onChange={setDuration} icon={<Clock3 aria-hidden="true" />} />
-          <ContextPicker label="同行" value={companion} options={companions}
-            onChange={setCompanion} icon={<Users aria-hidden="true" />} />
+    <Tabs value={view} onValueChange={setView} className="decision-results">
+      <div className="results-nav">
+        <TabsList aria-label="查看候选或地点库" className="decision-tabs">
+          <TabsTrigger value="pick">帮我选</TabsTrigger>
+          <TabsTrigger value="all">全部地点（{places.length}）</TabsTrigger>
+          <TabsTrigger value="saved"><Bookmark aria-hidden="true" />收藏（{savedIds.length}）</TabsTrigger>
+        </TabsList>
+        <span className="coverage-label">{area}</span>
+      </div>
+      {["pick", "all", "saved"].map(tab => <TabsContent key={tab} value={tab}>
+        <div className="decision-results-heading">
+          <h2>{tab === "pick" ? "先看看这几个" : tab === "saved" ? "留着下次再看" : "继续找找想去的地方"}</h2>
+          <p aria-live="polite" role="status">{outing.duration} · {outing.companion} · {moodLabels[outing.mood]} · {visible.length}个候选</p>
         </div>
+        {hasFilters && <div className="applied-filters"><span>当前筛选：{area} · {category}{query.trim() && " · “" + query.trim() + "”"}</span><button type="button" onClick={resetFilters}>清除筛选</button></div>}
+        {visible.length ? <div className="decision-grid">{visible.map(renderCard)}</div> : <div className="decision-empty">
+          <Search aria-hidden="true" /><h3>{tab === "saved" && savedIds.length === 0 ? "还没有收藏的地点" : "这些条件下，暂时没有候选"}</h3>
+          <p>{tab === "saved" && savedIds.length === 0 ? "看到感兴趣的地点，点一下卡片上的爱心就能留下。" : "目前收录30个地点，可以放宽街区、分类或搜索条件。"}</p>
+          <Button variant="outline" onClick={() => { resetFilters(); setView("all"); }}>浏览全部地点</Button>
+        </div>}
+        {tab === "pick" && ranked.length > suggestions.length && <div className="more-candidates"><p>这几个是不同活动方向的候选，可以任选一处；不构成连续路线。</p><Button variant="outline" onClick={() => setView("all")}>查看全部{ranked.length}个结果 <ArrowRight aria-hidden="true" /></Button></div>}
+      </TabsContent>)}
+      {storageNote && <p className="storage-message" role="status">{storageNote}</p>}
+      <p className="decision-boundary">停留时间为编辑建议，未计交通、排队；营业、预约和费用请出发前确认。</p>
+    </Tabs>
 
-        <div className="quick-row">
-          <div className="quick-group" aria-label="时间选择">
-            <span>有多久</span>
-            {durations.map((item) => (
-              <button
-                className={duration === item ? "chip selected" : "chip"}
-                aria-pressed={duration === item}
-                key={item}
-                onClick={() => setDuration(item)}
-                type="button"
-              >
-                {item}
-              </button>
-            ))}
-          </div>
-          <div className="quick-group" aria-label="同行人选择">
-            <span>和谁</span>
-            {companions.map((item) => (
-              <button
-                className={companion === item ? "chip selected" : "chip"}
-                aria-pressed={companion === item}
-                key={item}
-                onClick={() => setCompanion(item)}
-                type="button"
-              >
-                {item}
-              </button>
-            ))}
-          </div>
-          <div className="quick-group" aria-label="心情选择">
-            <span>想要</span>
-            {moods.map((item) => (
-              <button
-                className={mood === item ? "chip selected" : "chip"}
-                key={item}
-                onClick={() => setMood(item)}
-                type="button"
-              >
-                {item}
-              </button>
-            ))}
-          </div>
-        </div>
-      </section>
+    <footer className="decision-footer">
+      <img src="/og.png" alt="吃喝玩乐全攻略上海街区插画" width="160" height="84" loading="lazy" />
+      <div><strong>从这次想去哪里开始。</strong><p>{places.length}个真实地点 · 资料查阅于{checkedAt}。来源在地点详情中。</p><p>收藏保存在当前浏览器；分享网址不会带上你的收藏。</p></div>
+    </footer>
 
-      <section className="discovery-toolbar">
-        <div className="category-tabs" aria-label="地点分类">
-          {categories.map((item) => (
-            <button
-              className={category === item ? "category active" : "category"}
-              key={item}
-              onClick={() => setCategory(item)}
-              type="button"
-            >
-              {item}
-            </button>
-          ))}
-        </div>
-        <div className="toolbar-status">
-          <span className="live-dot" />
-          当前选择：{mood} · {duration} · {companion}
-          <Button
-            className="filter-button"
-            onClick={() => setProfileOpen(true)}
-            size="sm"
-            variant="outline"
-          >
-            <SlidersHorizontal />
-            调整偏好
-          </Button>
-        </div>
-      </section>
-
-      <section className="workspace" aria-label="上海地点发现">
-        <div className="map-panel">
-          <div className="map-toolbar">
-            <div>
-              <strong>{area} · 地点索引</strong>
-              <span>已收录 {places.length} 个真实地点</span>
-            </div>
-            <button type="button" onClick={() => {
-              setArea(ALL_AREAS); setCategory("全部"); setQuery(""); setShowSavedOnly(false);
-            }}>
-              <Navigation aria-hidden="true" />
-              查看全部
-            </button>
-          </div>
-          <div className="place-directory">
-            <p className="directory-note">按当前结果排列，不表示地理位置。点击地点查看地址与资料。</p>
-            <div className="directory-grid" aria-label="地点索引">
-              {rankedPlaces.map((place, index) => (
-                <button type="button" key={place.id} aria-pressed={activePlace?.id === place.id}
-                  onClick={() => setActiveId(place.id)}>
-                  <span className="directory-number">{String(index + 1).padStart(2, "0")}</span>
-                  <span><strong>{place.name}</strong><small>{place.category} · {place.area}</small></span>
-                </button>
-              ))}
-            </div>
-            {activePlace ? (
-              <Card className="map-preview directory-preview">
-                <CardHeader>
-                  <Badge variant="outline">{activePlace.type}</Badge>
-                  <CardTitle>{activePlace.name}</CardTitle>
-                  <CardDescription>{activePlace.address}</CardDescription>
-                </CardHeader>
-                <CardContent><p>{activePlace.why}</p></CardContent>
-                <CardFooter>
-                  <Button size="sm" onClick={() => setReasonOpen(true)}>
-                    查看推荐理由与资料 <ArrowRight />
-                  </Button>
-                </CardFooter>
-              </Card>
-            ) : <p className="directory-empty">当前条件下没有地点，请调整筛选。</p>}
-          </div>
-        </div>
-
-        <aside className="results-panel">
-          <div className="results-heading">
-            <div>
-              <span>按偏好演示排序 · 分数为示例</span>
-              <h2>{showSavedOnly ? "已收藏的地点" : "此刻更适合你的去处"}</h2>
-            </div>
-            <span className="result-count">{rankedPlaces.length} 个结果</span>
-          </div>
-
-          <div className="results-list">
-            {rankedPlaces.length === 0 ? (
-              <div className="empty-state">
-                <Compass />
-                <h3>暂时没有符合条件的地点</h3>
-                <p>换一个分类，或者取消“只看收藏”。</p>
-                <Button
-                  onClick={() => {
-                    setCategory("全部");
-                    setShowSavedOnly(false);
-                    setQuery("");
-                    setArea(ALL_AREAS);
-                  }}
-                  variant="outline"
-                >
-                  查看全部
-                </Button>
-              </div>
-            ) : (
-              rankedPlaces.map((place, index) => (
-                <article
-                  className={
-                    activePlace?.id === place.id
-                      ? "place-card active"
-                      : "place-card"
-                  }
-                  key={place.id}
-                  onClick={() => setActiveId(place.id)}
-                >
-                  <div className="place-rank">
-                    <span>{String(index + 1).padStart(2, "0")}</span>
-                    <div
-                      className="match-ring"
-                      style={{
-                        "--match": String(place.match * 3.6) + "deg",
-                      } as React.CSSProperties}
-                    >
-                      <strong>{place.match}</strong>
-                      <small>示例</small>
-                    </div>
-                  </div>
-
-                  <div className="place-copy">
-                    <div className="place-meta">
-                      <Badge variant="secondary">{place.category}</Badge>
-                      <span>{place.type}</span>
-                    </div>
-                    <h3><button type="button" className="place-title-button" onClick={() => { setActiveId(place.id); setReasonOpen(true); }}>{place.name}</button></h3>
-                    <p className="place-address">{place.address}</p>
-                    <p className="why-copy">
-                      <Sparkles />
-                      {place.why}
-                    </p>
-                    <div className="tag-row">
-                      {place.tags.map((tag) => (
-                        <span key={tag}>{tag}</span>
-                      ))}
-                    </div>
-                    <div className="place-facts">
-                      <span>
-                        <Clock3 />
-                        {place.duration}
-                      </span>
-                      <span>
-                        <Footprints />
-                        {place.walking}
-                      </span>
-                    </div>
-                    <p className="watchout">留意：{place.watchout}</p>
-                    <button type="button" className="place-details-button" onClick={() => { setActiveId(place.id); setReasonOpen(true); }}>查看详情与来源 <ArrowRight aria-hidden="true" /></button>
-                  </div>
-
-                  <button
-                    aria-label={
-                      savedIds.includes(place.id)
-                        ? "取消收藏" + place.name
-                        : "收藏" + place.name
-                    }
-                    className={
-                      savedIds.includes(place.id)
-                        ? "save-button saved"
-                        : "save-button"
-                    }
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      toggleSaved(place.id);
-                    }}
-                    type="button"
-                  >
-                    <Heart />
-                  </button>
-                </article>
-              ))
-            )}
-          </div>
-
-          <div className="confidence-note">
-            <Check />
-            <span>
-              <strong>{places.length}个真实地点 · 资料查阅于{checkedAt}</strong>
-              名称与地址附来源；部分资料较早，当天营业、价格及排期待复核。标签、停留建议与匹配分为编辑建议或演示。
-            </span>
-          </div>
-        </aside>
-      </section>
-
-      <section className="concept-section">
-        <div className="concept-image">
-          <img alt="吃喝玩乐全攻略上海试点品牌视觉" src="/og.png" />
-        </div>
-        <div className="concept-copy">
-          <Badge className="beta-badge">推荐会随着你而变化</Badge>
-          <h2>你每次说“不合适”，都比再看一份榜单更有价值。</h2>
-          <p>
-            首版会记录收藏与选择偏好。后续加入“不想排队”“今天不想走太多”“太网红”等原因反馈，
-            逐步把地点热度转换成与你有关的适合度。
-          </p>
-          <Button onClick={() => setProfileOpen(true)} size="lg">
-            看看我的偏好画像
-            <ArrowRight />
-          </Button>
-        </div>
-      </section>
-
-      <footer>
-        <div className="brand footer-brand">
-          <span className="brand-mark">沪</span>
-          <span>
-            <strong>吃喝玩乐全攻略</strong>
-            <small>上海试点 · 产品原型</small>
-          </span>
-        </div>
-        <p>名称与地址已按来源整理；开放、价格与排期请出发前复核。</p>
-      </footer>
-
-      {activePlace && activeMatch && <Dialog open={reasonOpen} onOpenChange={setReasonOpen}>
-        <DialogContent className="reason-dialog" showCloseButton={false}>
-          <DialogHeader>
-            <DialogTitle>{activePlace.name} · 推荐理由</DialogTitle>
-            <DialogDescription>真实地点资料与编辑建议；当天营业和票务请出发前复核。</DialogDescription>
-          </DialogHeader>
-          <p>{activePlace.why}</p>
-          <dl className="reason-facts">
-            <div><dt>地址</dt><dd>{activePlace.address}</dd></div>
-            <div><dt>开放与营业</dt><dd>{activePlace.opening}</dd></div>
-            <div><dt>费用</dt><dd>{activePlace.cost}</dd></div>
-            <div><dt>资料来源</dt><dd className="source-links">
-              {activePlace.sources.map((source) => <a key={source.url} href={source.url} target="_blank" rel="noopener noreferrer">
-                {source.title}{source.date ? `（资料日期：${source.date}）` : ""} ↗
-              </a>)}
-            </dd></div>
-            <div><dt>资料查阅日期</dt><dd>{activePlace.checkedAt} · 非现场核验；来源链接需联网。</dd></div>
-            <div><dt>当前选择</dt><dd>{area} · {duration} · {companion} · {mood}</dd></div>
-            <div><dt>体验标签</dt><dd>{activePlace.tags.join(" · ")}</dd></div>
-            <div><dt>停留建议</dt><dd>{activePlace.duration} · {activePlace.walking}</dd></div>
-            <div><dt>示例匹配分</dt><dd>{activeMatch.score} / 100（上限 99）</dd></div>
-            <div><dt>分数来源</dt><dd>
-              预设基础分 {activePlace.baseMatch}；
-              {activeMatch.moodBonus > 0 ? `符合“${mood}”，加 3 分` : `未标注“${mood}”，减 2 分`}；
-              {activeMatch.timeBonus > 0 ? "2 小时活动匹配，加 2 分" : "时间项本次不加分"}。
-            </dd></div>
+    <Dialog open={detail !== null} onOpenChange={open => { if (!open) setDetail(null); }}>
+      <DialogContent className="decision-dialog" showCloseButton={false}>
+        {detail && active && <>
+          <DialogHeader><DialogTitle>{detail.name}</DialogTitle><DialogDescription>{detail.type} · {detail.area}</DialogDescription></DialogHeader>
+          <p>{detail.why}</p>
+          <div className="detail-reasons"><h3>为什么列入这次候选</h3><ul>{active.reasons.map(reason => <li key={reason}>{reason}</li>)}</ul><p>{active.caution}</p></div>
+          <dl className="detail-facts">
+            <div><dt>地址</dt><dd className="copyable-address">{detail.address}</dd></div>
+            <div><dt>建议停留</dt><dd>{detail.duration}；未计交通与排队。</dd></div>
+            <div><dt>开放与营业</dt><dd>{detail.opening}</dd></div>
+            <div><dt>费用</dt><dd>{detail.cost}</dd></div>
+            <div><dt>其他提醒</dt><dd>{detail.watchout}</dd></div>
           </dl>
-          <p className="reason-note">同行选择已同步，但首版尚未用于评分；以上分数为演示规则计算，并非真实用户评价或到访概率。</p>
-          <p className="reason-watchout">留意：{activePlace.watchout}</p>
-          <DialogClose asChild><Button type="button">关闭推荐理由</Button></DialogClose>
-        </DialogContent>
-      </Dialog>}
+          <div className="detail-actions"><Button variant="outline" onClick={copyAddress}>复制地址</Button><Button variant="outline" onClick={() => toggleSaved(detail.id)}>{savedIds.includes(detail.id) ? <Check /> : <Heart />}{savedIds.includes(detail.id) ? "已收藏 · 点击取消" : "收藏这个地点"}</Button></div>
+          {copyNote && <p role="status">{copyNote}</p>}
+          {storageNote && <p role="status">{storageNote}</p>}
+          <details className="source-details"><summary>查看资料来源与查阅日期</summary><p>名称、地址来自下列资料；体验标签和推荐理由为编辑建议。</p>
+            <ul>{detail.sources.map(source => <li key={source.url}><a href={source.url} target="_blank" rel="noopener noreferrer">{source.title} ↗</a>{source.date && <small>资料日期：{source.date}</small>}</li>)}</ul>
+            <p>查阅日期：{detail.checkedAt}。部分来源较早，未进行现场核验。</p>
+          </details>
+          <DialogClose asChild><Button className="dialog-done">返回候选</Button></DialogClose>
+        </>}
+      </DialogContent>
+    </Dialog>
 
-      {profileOpen && (
-        <div
-          className="profile-backdrop"
-          onClick={() => setProfileOpen(false)}
-          role="presentation"
-        >
-          <aside
-            aria-label="我的偏好画像"
-            className="profile-drawer"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="drawer-heading">
-              <div>
-                <Badge className="beta-badge">动态偏好画像</Badge>
-                <h2>松弛探索型</h2>
-                <p>依据本次选择生成，随每次互动更新。</p>
-              </div>
-              <button
-                aria-label="关闭偏好画像"
-                onClick={() => setProfileOpen(false)}
-                type="button"
-              >
-                <X />
-              </button>
-            </div>
-
-            <div className="profile-summary">
-              <div className="profile-score">72</div>
-              <div>
-                <strong>画像可信度</strong>
-                <p>再完成3次地点选择，可提升推荐稳定性。</p>
-              </div>
-            </div>
-
-            <div className="preference-list">
-              {[
-                ["安静", "热闹", 68],
-                ["经典", "小众", 61],
-                ["精致", "烟火气", 57],
-                ["计划", "随性", 73],
-                ["低活动量", "高活动量", 34],
-              ].map(([left, right, value]) => (
-                <div className="preference-item" key={String(left)}>
-                  <div>
-                    <span>{left}</span>
-                    <span>{right}</span>
-                  </div>
-                  <div className="preference-track">
-                    <span style={{ left: String(value) + "%" }} />
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="drawer-question">
-              <span>快速校准</span>
-              <h3>同样是周末下午，你更想去哪一个？</h3>
-              <div>
-                <button type="button">
-                  <strong>安静街区</strong>
-                  <small>慢慢走，不设目的地</small>
-                </button>
-                <button type="button">
-                  <strong>热闹市集</strong>
-                  <small>人多一点，也更有新鲜感</small>
-                </button>
-              </div>
-            </div>
-          </aside>
-        </div>
-      )}
-    </main>
-  );
+    <Dialog open={aboutOpen} onOpenChange={setAboutOpen}>
+      <DialogContent className="decision-dialog" showCloseButton={false}>
+        <DialogHeader><DialogTitle>这些候选怎么来的</DialogTitle><DialogDescription>根据你这次的选择，从30个地点中筛选。</DialogDescription></DialogHeader>
+        <dl className="detail-facts">
+          <div><dt>时间</dt><dd>按单个地点的建议停留时长判断。两小时优先选建议停留不超过90分钟的地点，余下30分钟仅是预留量，不能代替实际交通计算。</dd></div>
+          <div><dt>同行</dt><dd>一个人时倾向自主阅读、观察或看展；朋友同行时倾向用餐或户外活动。家人同行不推定年龄，也不代表已核实无障碍条件。</dd></div>
+          <div><dt>心情</dt><dd>依据编辑整理的体验标签。“换点新鲜”按主题特色选择，不代表冷门或人少；“松弛”也不保证安静或免排队。</dd></div>
+          <div><dt>三个不同方向</dt><dd>时间允许时，优先提供不同活动类型。它们是可任选的地点，不是一条已计算好的路线。</dd></div>
+        </dl>
+        <p>目前没有接入实时营业、交通或票务。这些规则只帮助缩小候选范围，尚不能判断你一定会喜欢哪里。</p>
+        <DialogClose asChild><Button>知道了</Button></DialogClose>
+      </DialogContent>
+    </Dialog>
+  </main>;
 }
