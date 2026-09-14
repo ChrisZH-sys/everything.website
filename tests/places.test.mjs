@@ -2,10 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { places, areas, ALL_AREAS, validSavedIds } from "../lib/places.ts";
 
-test("30 distinct real-place records have inspectable provenance", () => {
-  assert.equal(places.length, 30);
-  assert.equal(new Set(places.map(p => p.id)).size, 30);
-  assert.equal(new Set(places.map(p => p.name)).size, 30);
+test("60 distinct real-place records have inspectable provenance", () => {
+  assert.equal(places.length, 60);
+  assert.equal(new Set(places.map(p => p.id)).size, 60);
+  assert.equal(new Set(places.map(p => p.name)).size, 60);
   const counts = {};
   for (const p of places) {
     counts[p.category] = (counts[p.category] ?? 0) + 1;
@@ -19,7 +19,8 @@ test("30 distinct real-place records have inspectable provenance", () => {
     }
     assert.doesNotMatch(p.name, /样本|休息点|散步段/);
   }
-  assert.deepEqual(counts, { 看: 7, 吃: 6, 喝: 3, 玩: 4, 逛: 10 });
+  for (const category of ["看", "吃", "喝", "玩", "逛"]) assert.ok(counts[category] >= 5);
+  assert.ok(places.filter(p => p.id < 200).every(p => p.checkedAt === "2026-09-11"), "Expansion must not pretend old sources were rechecked");
 });
 
 test("saved sample IDs cannot become unrelated real places", () => {

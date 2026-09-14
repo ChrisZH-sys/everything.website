@@ -6,6 +6,15 @@
   scrollbar-width: thin;
 }
 
+@utility scrollbar-none {
+  scrollbar-width: none;
+  &::-webkit-scrollbar { display: none; }
+}
+
+@utility scrollbar-gutter-stable {
+  scrollbar-gutter: stable;
+}
+
 :root {
   --background: #f4efe6;
   --foreground: #18362f;

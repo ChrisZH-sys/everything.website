@@ -1,88 +1,67 @@
 import type { Place } from "./places";
+import { activityLabels, visitFor, type Activity } from "./visit-profiles.ts";
 
 export type Outing = { duration: "2小时" | "半天" | "一天"; companion: "一个人" | "两个人" | "朋友" | "家人"; mood: "松弛" | "有故事" | "热闹" | "小众" };
-export type Recommendation = { place: Place; priority: number; reasons: string[]; caution: string; timeFits: boolean };
+export type Recommendation = { place: Place; priority: number; reasons: string[]; caution: string; timeFits: boolean; suitable: boolean };
 
-// Editorial visit-time ranges, consistent with the displayed suggestions.
-// They exclude journeys, queues and real-time event running lengths.
-const minutes: Record<number, [number, number]> = {
-  1: [30, 60], 101: [45, 60], 102: [30, 60], 103: [30, 60], 5: [120, 120],
-  6: [30, 60], 104: [45, 60], 105: [15, 30], 106: [30, 60], 107: [60, 120],
-  108: [120, 120], 109: [120, 120], 110: [120, 120], 111: [45, 90],
-  112: [30, 60], 113: [30, 60], 114: [45, 60], 115: [30, 60], 116: [30, 45],
-  117: [30, 45], 118: [30, 45], 119: [60, 90], 120: [45, 75], 121: [30, 45],
-  122: [30, 45], 123: [30, 45], 124: [60, 90], 125: [60, 90], 126: [60, 90], 127: [60, 90],
+// Editorial preference strengths, not ratings or learned scores.
+const social: Record<Outing["companion"], Partial<Record<Activity, number>>> = {
+  "一个人": { reading: 20, records: 18, exhibition: 16, architecture: 14, park: 12, snack: 10, cafe: 8, concert: 12, opera: 8 },
+  "两个人": { cafe: 22, meal: 20, park: 12, browse: 10, exhibition: 8, film: 14, jazz: 14, bar: 16 },
+  "朋友": { meal: 24, cafe: 14, film: 20, jazz: 22, musical: 18, drama: 16, browse: 12, park: 10, bar: 18 },
+  "家人": { park: 20, exhibition: 16, meal: 14, browse: 12, architecture: 10, snack: 8, film: 8 },
 };
-const outdoor = new Set([1, 6, 106, 111]);
-const reading = new Set([107, 112, 113, 114, 115]);
-
 export function recommend(place: Place, outing: Outing): Recommendation {
-  const range = minutes[place.id];
-  if (!range) throw new Error(`Missing visit-time annotation for ${place.id}`);
-  const performance = place.category === "玩";
-  const food = place.category === "吃" || place.category === "喝";
+  const v = visitFor(place), [min, max] = v.minutes;
   const budget = { "2小时": 120, "半天": 240, "一天": 480 }[outing.duration];
-  // Reserve 30 minutes as an editorial buffer, NOT a calculated journey.
-  const timeFits = range[1] <= budget - 30;
-  let priority = timeFits ? 20 : -30;
-  const reasons: string[] = [];
-  let companionReason = "";
-  if (outing.companion === "一个人" && (reading.has(place.id) || place.category === "看")) {
-    priority += 8;
-    companionReason = "一个人也能按自己的兴趣观察、阅读或看展。";
-  } else if (outing.companion === "两个人" && (food || place.category === "看")) {
-    priority += 8;
-    companionReason = food ? "两个人可以围绕一顿饭或一杯饮品安排相处时间。" : "两个人可以选一个共同感兴趣的主题一起看。";
-  } else if (outing.companion === "朋友" && (food || outdoor.has(place.id))) {
-    priority += 12;
-    companionReason = food ? "和朋友同行，可以把用餐或喝东西作为碰面的活动。" : "和朋友一起走走，停留节奏可以商量着来。";
-  } else if (outing.companion === "家人" && !performance && !food) {
-    priority += 8;
-    companionReason = "家人同行，可按大家的兴趣调整停留长短；无障碍条件需另查。";
+  const target = { "2小时": 45, "半天": 90, "一天": 120 }[outing.duration];
+  const timeFits = max <= budget - 30;
+  const suitable = !(outing.companion === "家人" && v.adultExperience);
+  const durationFit = Math.max(0, 18 - Math.abs((min + max) / 2 - target) / 5);
+  let priority = (timeFits ? 30 : -40) + durationFit + (social[outing.companion][v.activity] ?? 0);
+  if (!suitable) priority -= 100;
+  if (place.moods.includes(outing.mood)) priority += 22;
+  const reasons = [`这处可以${activityLabels[v.activity]}：${place.why}`];
+  if (v.conversation === "可交流" && ["两个人", "朋友"].includes(outing.companion)) {
+    reasons.push(`${outing.companion}同行，可以把这次停留留给交流；座位与环境需确认。`);
+  } else if (outing.companion === "一个人" && ["reading", "records", "exhibition", "architecture"].includes(v.activity)) {
+    reasons.push("一个人可以按自己的兴趣与节奏阅读、观察。");
+  } else if (outing.companion === "家人") {
+    reasons.push(v.adultExperience ? "以晚间酒吧或爵士体验为主，家人同行时不放入默认推荐。" : "家人同行可一起选择主题；无障碍条件需另查。");
+  } else {
+    reasons.push(v.conversation === "以专注观看为主" ? "适合共同观看；观看期间不适合聊天，先确认大家对节目有兴趣。" : v.participation);
   }
-
-  if (place.moods.includes(outing.mood)) {
-    priority += 12;
-    reasons.push({
-      "松弛": "想松弛一点：这处地点被编辑标为可慢慢体验的候选。",
-      "有故事": "想看点故事：这里的历史、人物或作品可以作为探索主题。",
-      "热闹": "想热闹一点：优先考虑用餐、商业街区或共同活动，实际人流待确认。",
-      "小众": "想换点新鲜的：这里有相对具体的阅读、艺术或体验主题。",
-    }[outing.mood]);
-  }
-  if (companionReason) reasons.push(companionReason);
-  if (timeFits) {
-    reasons.push(outing.duration === "2小时"
-      ? `单点建议停留${range[0]}–${range[1]}分钟，可以在两小时里留出一些余量。`
-      : performance ? "时间预算较宽裕，可以先确认场次，再围绕演出安排这次出行。"
-        : `单点建议停留${range[0]}–${range[1]}分钟，可以作为${outing.duration}出行中的一站。`);
-  }
-  const caution = !timeFits
-    ? performance ? "演出本身约需2小时或更久，加上交通会偏紧；须另查排期和余票。"
-      : "按建议停留上限计算，留给交通的余量偏少；可缩短停留或换个候选。"
-    : performance ? "请先确认当天场次、演出时长与余票。"
-    : outdoor.has(place.id) ? "户外体验受天气影响；这里不提供实时人流或天气判断。"
-    : reading.has(place.id) && outing.companion === "朋友" ? "书店、阅览区以阅读为主；如果主要想聊天，可以优先看看咖啡或用餐候选。"
-    : "当天营业、预约和费用未逐项确认，出发前请查看地点资料。";
-  return { place, priority, reasons, caution, timeFits };
+  reasons.push(`单点建议${min}–${max}分钟（编辑估计），${outing.duration === "2小时" ? "另预留30分钟余量，交通与排队需自行核对" : `可作为${outing.duration}出行中的一站；其余行程需另作安排`}。`);
+  if (v.evening) reasons.push("这是晚间候选；当前没有按出发时刻核对营业。");
+  const caution = !timeFits ? "加上交通会偏紧；建议缩短停留或选择更短的活动，场次时长请另查。"
+    : v.evening ? "晚间体验：先确认营业日、消费与入场要求。"
+    : v.conversation === "以专注观看为主" ? "先确认场次、时长与余票；不保证当天有合适节目。"
+    : v.setting !== "室内为主" ? "户外部分受天气影响；当前开放范围与人流待确认。"
+    : ["两个人", "朋友"].includes(outing.companion) && v.conversation === "轻声交流" ? "阅读、看展或选唱片以轻声交流为宜；主要想聊天可选咖啡与餐厅。"
+    : "当天营业、座位、费用及预约要求请在出发前确认。";
+  return { place, priority, reasons, caution, timeFits, suitable };
 }
-
 export function rankPlaces(places: Place[], outing: Outing): Recommendation[] {
-  return places.map(p => recommend(p, outing)).sort((a, b) => b.priority - a.priority || a.place.id - b.place.id);
+  return places.map(p => recommend(p, outing)).sort((a, b) =>
+    b.priority - a.priority || a.place.name.localeCompare(b.place.name, "zh-CN"));
 }
-
-// Show different activities among time-fitting candidates, then fill remaining
-// slots. Search/category/area filtering happens before this function.
+// Diversify activities within 18 points of the best remaining match.
+// A precinct and tenant cannot fill two slots. Ties use names only for display;
+// no ID preference or random rotation. All alternatives remain in the full list.
 export function shortlist(ranked: Recommendation[], limit = 3): Recommendation[] {
+  if (limit <= 0) return [];
+  const suitable = ranked.filter(r => r.suitable);
+  const pool = suitable.some(r => r.timeFits) ? suitable.filter(r => r.timeFits) : suitable;
   const chosen: Recommendation[] = [];
-  const pool = ranked.some(r => r.timeFits) ? ranked.filter(r => r.timeFits) : ranked;
-  for (const r of pool) {
-    if (!chosen.some(c => c.place.category === r.place.category)) chosen.push(r);
-    if (chosen.length === limit) return chosen;
-  }
-  for (const r of pool) {
-    if (!chosen.some(c => c.place.id === r.place.id)) chosen.push(r);
-    if (chosen.length === limit) break;
+  while (chosen.length < limit) {
+    const remaining = pool.filter(r => !chosen.some(c => visitFor(c.place).cluster === visitFor(r.place).cluster));
+    if (!remaining.length) break;
+    const candidates = remaining.filter(r => r.priority >= remaining[0].priority - 18);
+    const adjusted = (r: Recommendation) => r.priority
+      - (chosen.some(c => visitFor(c.place).activity === visitFor(r.place).activity) ? 18 : 0)
+      - (chosen.some(c => c.place.category === r.place.category) ? 4 : 0);
+    candidates.sort((a, b) => adjusted(b) - adjusted(a) || b.priority - a.priority || a.place.name.localeCompare(b.place.name, "zh-CN"));
+    chosen.push(candidates[0]);
   }
   return chosen;
 }

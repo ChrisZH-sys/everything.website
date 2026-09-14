@@ -7,7 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ALL_AREAS, areas, checkedAt, places, validSavedIds, type Place } from "@/lib/places";
+import { ALL_AREAS, areas, catalogueUpdatedAt, places, validSavedIds, type Place } from "@/lib/places";
+import { visitFor } from "@/lib/visit-profiles";
 import { rankPlaces, recommend, shortlist, type Outing, type Recommendation } from "@/lib/recommendations";
 
 const durations: Outing["duration"][] = ["2小时", "半天", "一天"];
@@ -141,7 +142,7 @@ export default function Home() {
         {hasFilters && <div className="applied-filters"><span>当前筛选：{area} · {category}{query.trim() && " · “" + query.trim() + "”"}</span><button type="button" onClick={resetFilters}>清除筛选</button></div>}
         {visible.length ? <div className="decision-grid">{visible.map(renderCard)}</div> : <div className="decision-empty">
           <Search aria-hidden="true" /><h3>{tab === "saved" && savedIds.length === 0 ? "还没有收藏的地点" : "这些条件下，暂时没有候选"}</h3>
-          <p>{tab === "saved" && savedIds.length === 0 ? "看到感兴趣的地点，点一下卡片上的爱心就能留下。" : "目前收录30个地点，可以放宽街区、分类或搜索条件。"}</p>
+          <p>{tab === "saved" && savedIds.length === 0 ? "看到感兴趣的地点，点一下卡片上的爱心就能留下。" : `目前收录${places.length}个地点，可以放宽街区、分类或搜索条件，或在全部地点中查看其他选择。`}</p>
           <Button variant="outline" onClick={() => { resetFilters(); setView("all"); }}>浏览全部地点</Button>
         </div>}
         {tab === "pick" && ranked.length > suggestions.length && <div className="more-candidates"><p>这几个是不同活动方向的候选，可以任选一处；不构成连续路线。</p><Button variant="outline" onClick={() => setView("all")}>查看全部{ranked.length}个结果 <ArrowRight aria-hidden="true" /></Button></div>}
@@ -152,7 +153,7 @@ export default function Home() {
 
     <footer className="decision-footer">
       <img src="/og.png" alt="吃喝玩乐全攻略上海街区插画" width="160" height="84" loading="lazy" />
-      <div><strong>从这次想去哪里开始。</strong><p>{places.length}个真实地点 · 资料查阅于{checkedAt}。来源在地点详情中。</p><p>收藏保存在当前浏览器；分享网址不会带上你的收藏。</p></div>
+      <div><strong>从这次想去哪里开始。</strong><p>{places.length}个真实地点 · 地点库更新于{catalogueUpdatedAt}。每个地点的来源与查阅日期在详情中。</p><p>收藏保存在当前浏览器；分享网址不会带上你的收藏。</p></div>
     </footer>
 
     <Dialog open={detail !== null} onOpenChange={open => { if (!open) setDetail(null); }}>
@@ -164,6 +165,8 @@ export default function Home() {
           <dl className="detail-facts">
             <div><dt>地址</dt><dd className="copyable-address">{detail.address}</dd></div>
             <div><dt>建议停留</dt><dd>{detail.duration}；未计交通与排队。</dd></div>
+            <div><dt>怎么体验</dt><dd>{visitFor(detail).setting} · {visitFor(detail).conversation}（编辑建议，不代表实测噪声或有空座）。{visitFor(detail).participation}</dd></div>
+            <div><dt>出发前确认</dt><dd>{visitFor(detail).booking}{visitFor(detail).evening && "；这是晚间候选。"}</dd></div>
             <div><dt>开放与营业</dt><dd>{detail.opening}</dd></div>
             <div><dt>费用</dt><dd>{detail.cost}</dd></div>
             <div><dt>其他提醒</dt><dd>{detail.watchout}</dd></div>
@@ -182,12 +185,12 @@ export default function Home() {
 
     <Dialog open={aboutOpen} onOpenChange={setAboutOpen}>
       <DialogContent className="decision-dialog" showCloseButton={false}>
-        <DialogHeader><DialogTitle>这些候选怎么来的</DialogTitle><DialogDescription>根据你这次的选择，从30个地点中筛选。</DialogDescription></DialogHeader>
+        <DialogHeader><DialogTitle>这些候选怎么来的</DialogTitle><DialogDescription>根据你这次的选择，从{places.length}个地点中筛选。</DialogDescription></DialogHeader>
         <dl className="detail-facts">
-          <div><dt>时间</dt><dd>按单个地点的建议停留时长判断。两小时优先选建议停留不超过90分钟的地点，余下30分钟仅是预留量，不能代替实际交通计算。</dd></div>
+          <div><dt>时间</dt><dd>两小时优先短停留，半天或一天会增加较长活动的优先级。按建议上限预留30分钟余量，不能代替交通计算。三个候选可任选，单个地点不一定能填满半天或一天。</dd></div>
           <div><dt>同行</dt><dd>一个人时倾向自主阅读、观察或看展；朋友同行时倾向用餐或户外活动。家人同行不推定年龄，也不代表已核实无障碍条件。</dd></div>
           <div><dt>心情</dt><dd>依据编辑整理的体验标签。“换点新鲜”按主题特色选择，不代表冷门或人少；“松弛”也不保证安静或免排队。</dd></div>
-          <div><dt>三个不同方向</dt><dd>时间允许时，优先提供不同活动类型。它们是可任选的地点，不是一条已计算好的路线。</dd></div>
+          <div><dt>三个不同方向</dt><dd>在条件接近的候选中提供不同体验；同一街区空间和它里面的商户避免同时占位。同等条件按名称稳定展示，全部地点仍可查看。条件变化后保留部分合适地点是正常的。</dd></div>
         </dl>
         <p>目前没有接入实时营业、交通或票务。这些规则只帮助缩小候选范围，尚不能判断你一定会喜欢哪里。</p>
         <DialogClose asChild><Button>知道了</Button></DialogClose>

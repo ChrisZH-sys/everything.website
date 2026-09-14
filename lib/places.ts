@@ -1,3 +1,5 @@
+import { additionalPlaces } from "./additional-places.ts";
+
 export type Category = "吃" | "喝" | "玩" | "看" | "逛";
 export type Source = { title: string; url: string; date?: string };
 export type Place = {
@@ -11,6 +13,7 @@ export const ALL_AREAS = "衡复及周边";
 // Browsing groups, not administrative boundaries or distance-based searches.
 export const areas = [ALL_AREAS, "武康—衡山", "复兴—淮海", "思南—瑞金"];
 export const checkedAt = "2026-09-11";
+export const catalogueUpdatedAt = "2026-09-14";
 const gov = (title: string, path: string, date?: string): Source => ({
   title: `上海市政府国际服务门户｜${title}`, url: `https://english.shanghai.gov.cn/${path}`, date,
 });
@@ -116,6 +119,7 @@ export const places: Place[] = [
     moods: ["有故事", "小众"], tags: ["工艺美术", "雕刻", "织绣"], why: "以材料和手工技艺为线索看展，慢慢观察作品细节。", watchout: "当期展品、临时闭馆和票务安排尚未确认。", sources: [wiki("上海工艺美术博物馆")] }),
   place({ id: 127, name: "上海琉璃艺术博物馆", category: "看", type: "博物馆 · 琉璃艺术", area: "思南—瑞金", address: "泰康路25号", duration: "建议60–90分钟",
     moods: ["小众", "有故事"], tags: ["琉璃", "艺术", "材料之美"], why: "关注琉璃的颜色、光线与形态，尝试一种以材料为主题的看展方式。", watchout: "当期展览、门票、拍摄规定和营业状态请先向馆方确认。", sources: [wiki("上海琉璃艺术博物馆")] }),
+  ...additionalPlaces,
 ];
 
 export function validSavedIds(value: unknown): number[] {
