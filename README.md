@@ -1,4 +1,15 @@
-# vinext-starter
+# 吃喝玩乐全攻略 · 上海
+
+地点数据统一维护在 [上海地点库](data/shanghai.catalogue.json)，新增地点无需修改页面或推荐代码。
+
+- [地点维护与扩展说明](docs/catalogue-maintenance.md)
+- [60地点与推荐差异验收记录](docs/acceptance-2026-09-14.md)
+- 数据检查：`node scripts/validate-catalogue.mjs`（构建时也会自动执行）
+- 坐标尚待逐条核对，当前搜索仍是名称、地址、标签及片区检索；尚未接入半径搜索或外部地点服务。
+
+以下保留原有开发环境说明。
+
+## 开发框架
 
 A clean full-stack starter running on
 [vinext](https://github.com/cloudflare/vinext), with optional Cloudflare D1 and

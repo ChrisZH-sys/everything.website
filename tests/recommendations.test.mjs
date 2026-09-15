@@ -15,7 +15,7 @@ test("time budget demotes performances without excluding them from discovery", (
   assert.equal(longer.timeFits, true);
   assert.ok(longer.priority > short.priority);
   assert.match(short.caution, /交通会偏紧/);
-  assert.equal(rankPlaces(places, solo).length, 60);
+  assert.equal(rankPlaces(places, solo).length, places.length);
   assert.ok(shortlist(rankPlaces(places, solo)).every(r => r.timeFits));
 });
 
