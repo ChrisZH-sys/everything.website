@@ -8,8 +8,11 @@ import { Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, Di
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ALL_AREAS, areas, catalogueUpdatedAt, places, validSavedIds, type Place } from "@/lib/places";
+import { distanceFrom, formatDistance, radiusOptions, withinRadius } from "@/lib/geo-search";
 import { visitFor } from "@/lib/visit-profiles";
 import { rankPlaces, recommend, shortlist, type Outing, type Recommendation } from "@/lib/recommendations";
+
+const geoPlaces = places.filter(p => p.geo.status === "verified");
 
 const durations: Outing["duration"][] = ["2小时", "半天", "一天"];
 const companions: Outing["companion"][] = ["一个人", "两个人", "朋友", "家人"];
@@ -36,6 +39,9 @@ export default function Home() {
   const [area, setArea] = useState(ALL_AREAS);
   const [category, setCategory] = useState("全部");
   const [query, setQuery] = useState("");
+  const [originId, setOriginId] = useState("");
+  const [radius, setRadius] = useState(1000);
+  const origin = geoPlaces.find(p => String(p.id) === originId) ?? null;
   const [view, setView] = useState("pick");
   const [savedIds, setSavedIds] = useState<number[]>([]);
   const [storageNote, setStorageNote] = useState("");
@@ -52,21 +58,22 @@ export default function Home() {
     }
   }, []);
 
-  const ranked = useMemo(() => {
+  const searchResult = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     const filtered = places.filter(p =>
       (area === ALL_AREAS || p.area === area) &&
       (category === "全部" || p.category === category) &&
       (!normalized || [p.name, p.address, p.area, p.type, ...p.tags].join(" ").toLowerCase().includes(normalized)));
-    return rankPlaces(filtered, outing);
-  }, [area, category, query, outing]);
+    return withinRadius(filtered, origin, radius);
+  }, [area, category, query, origin, radius]);
+  const ranked = useMemo(() => rankPlaces(searchResult.places, outing), [searchResult, outing]);
   const suggestions = useMemo(() => shortlist(ranked), [ranked]);
   const saved = ranked.filter(r => savedIds.includes(r.place.id));
   const active = detail ? recommend(detail, outing) : null;
   const visible = view === "pick" ? suggestions : view === "saved" ? saved : ranked;
-  const hasFilters = area !== ALL_AREAS || category !== "全部" || query.trim() !== "";
+  const hasFilters = area !== ALL_AREAS || category !== "全部" || query.trim() !== "" || origin !== null;
 
-  function resetFilters() { setArea(ALL_AREAS); setCategory("全部"); setQuery(""); }
+  function resetFilters() { setArea(ALL_AREAS); setCategory("全部"); setQuery(""); setOriginId(""); setRadius(1000); }
   function toggleSaved(id: number) {
     const next = savedIds.includes(id) ? savedIds.filter(i => i !== id) : [...savedIds, id];
     setSavedIds(next);
@@ -82,6 +89,7 @@ export default function Home() {
 
   function renderCard(result: Recommendation) {
     const p = result.place;
+    const distance = origin ? distanceFrom(origin, p) : null;
     return <article className="decision-card" key={p.id}>
       <div className="decision-card-top"><Badge variant="secondary">{p.category} · {p.type.split(" · ")[0]}</Badge>
         <button type="button" className={savedIds.includes(p.id) ? "heart-button saved" : "heart-button"}
@@ -90,7 +98,7 @@ export default function Home() {
       </div>
       <h3><button type="button" onClick={() => openDetail(p)}>{p.name}</button></h3>
       <p className="visit-idea">{p.why}</p>
-      <div className="decision-facts"><span><MapPin aria-hidden="true" />{p.area}</span><span><Clock3 aria-hidden="true" />{p.duration}</span></div>
+      <div className="decision-facts"><span><MapPin aria-hidden="true" />{p.area}</span>{distance !== null && <span>距起点直线{formatDistance(distance)}</span>}<span><Clock3 aria-hidden="true" />{p.duration}</span></div>
       <div className="fit-reasons"><strong>为什么列入这次候选</strong>
         <ul>{result.reasons.slice(0, 2).map(reason => <li key={reason}>{reason}</li>)}</ul>
         {!result.reasons.length && <p>符合所选地区或分类；兴趣与同行方式没有明显匹配项。</p>}
@@ -115,12 +123,22 @@ export default function Home() {
         <Choices label="想怎么过" value={outing.mood} options={moods} labels={moodLabels} onChange={mood => setOuting(o => ({ ...o, mood: mood as Outing["mood"] }))} />
       </div>
       <details className="extra-filters">
-        <summary><SlidersHorizontal aria-hidden="true" />限定街区、分类，或搜索地点{hasFilters && <span> · 已筛选</span>}</summary>
+        <summary><SlidersHorizontal aria-hidden="true" />限定街区、分类，或附近找找{hasFilters && <span> · 已筛选</span>}</summary>
         <div className="extra-filter-body">
           <Choices label="在哪一带" value={area} options={areas} onChange={setArea} />
           <Choices label="主要想做什么" value={category} options={categories} onChange={setCategory} />
           <label className="decision-search"><Search aria-hidden="true" /><input type="search" aria-label="搜索地点、地址或标签" placeholder="输入地点、地址或标签，例如“书店”" value={query} onChange={e => setQuery(e.target.value)} /></label>
-          {hasFilters && <button type="button" className="plain-button" onClick={resetFilters}>清除街区、分类和搜索条件</button>}
+          <div className="nearby-controls">
+            <div className="nearby-intro"><strong>附近找找 <Badge variant="secondary">试用</Badge></strong><p id="nearby-help">先选一个起点，看看周围有什么。当前仅{geoPlaces.length}/{places.length}个地点支持距离筛选。</p></div>
+            <label className="nearby-origin" htmlFor="nearby-origin">从哪里出发
+              <select id="nearby-origin" value={originId} onChange={e => setOriginId(e.target.value)} aria-describedby="nearby-help">
+                <option value="">不限距离 · 浏览完整地点库</option>
+                {geoPlaces.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            </label>
+            {origin && <Choices label="直线范围" value={String(radius)} options={radiusOptions.map(String)} labels={{ "500": "500米", "1000": "1公里", "2000": "2公里", "3000": "3公里" }} onChange={value => setRadius(Number(value))} />}
+          </div>
+          {hasFilters && <button type="button" className="plain-button" onClick={resetFilters}>清除所有搜索条件</button>}
         </div>
       </details>
     </section>
@@ -139,10 +157,11 @@ export default function Home() {
           <h2>{tab === "pick" ? "先看看这几个" : tab === "saved" ? "留着下次再看" : "继续找找想去的地方"}</h2>
           <p aria-live="polite" role="status">{outing.duration} · {outing.companion} · {moodLabels[outing.mood]} · {visible.length}个候选</p>
         </div>
-        {hasFilters && <div className="applied-filters"><span>当前筛选：{area} · {category}{query.trim() && " · “" + query.trim() + "”"}</span><button type="button" onClick={resetFilters}>清除筛选</button></div>}
+        {hasFilters && <div className="applied-filters"><span>当前筛选：{area} · {category}{origin && ` · ${origin.name}周围${radius / 1000}公里（直线）`}{query.trim() && " · “" + query.trim() + "”"}</span><button type="button" onClick={resetFilters}>清除筛选</button></div>}
+        {origin && <div className="nearby-coverage" role="status"><p>以{origin.name}为起点，直线{radius < 1000 ? `${radius}米` : `${radius / 1000}公里`}内有{ranked.length}个地点符合搜索条件。实际步行距离请在地图中确认。</p><p>当前街区、分类和关键词下，{searchResult.eligible}个地点可计算距离；另有{searchResult.excluded}个地点的位置尚不能用于距离比较。</p><button type="button" className="plain-button" onClick={() => setOriginId("")}>取消距离限制，保留其他条件</button></div>}
         {visible.length ? <div className="decision-grid">{visible.map(renderCard)}</div> : <div className="decision-empty">
           <Search aria-hidden="true" /><h3>{tab === "saved" && savedIds.length === 0 ? "还没有收藏的地点" : "这些条件下，暂时没有候选"}</h3>
-          <p>{tab === "saved" && savedIds.length === 0 ? "看到感兴趣的地点，点一下卡片上的爱心就能留下。" : `目前收录${places.length}个地点，可以放宽街区、分类或搜索条件，或在全部地点中查看其他选择。`}</p>
+          <p>{tab === "saved" && savedIds.length === 0 ? "看到感兴趣的地点，点一下卡片上的爱心就能留下。" : origin ? "已核对位置的地点中暂未找到合适候选。试试扩大范围或取消距离限制；这不代表附近没有其他去处。" : `目前收录${places.length}个地点，可以放宽街区、分类或搜索条件，或在全部地点中查看其他选择。`}</p>
           <Button variant="outline" onClick={() => { resetFilters(); setView("all"); }}>浏览全部地点</Button>
         </div>}
         {tab === "pick" && ranked.length > suggestions.length && <div className="more-candidates"><p>这几个是不同活动方向的候选，可以任选一处；不构成连续路线。</p><Button variant="outline" onClick={() => setView("all")}>查看全部{ranked.length}个结果 <ArrowRight aria-hidden="true" /></Button></div>}
@@ -164,6 +183,7 @@ export default function Home() {
           <div className="detail-reasons"><h3>为什么列入这次候选</h3><ul>{active.reasons.map(reason => <li key={reason}>{reason}</li>)}</ul><p>{active.caution}</p></div>
           <dl className="detail-facts">
             <div><dt>地址</dt><dd className="copyable-address">{detail.address}</dd></div>
+            {origin && distanceFrom(origin, detail) !== null && <div><dt>距起点</dt><dd>直线{formatDistance(distanceFrom(origin, detail)!)}；根据地点标记估算，步行路线及入口请在地图中确认。</dd></div>}
             <div><dt>建议停留</dt><dd>{detail.duration}；未计交通与排队。</dd></div>
             <div><dt>怎么体验</dt><dd>{visitFor(detail).setting} · {visitFor(detail).conversation}（编辑建议，不代表实测噪声或有空座）。{visitFor(detail).participation}</dd></div>
             <div><dt>出发前确认</dt><dd>{visitFor(detail).booking}{visitFor(detail).evening && "；这是晚间候选。"}</dd></div>
@@ -176,6 +196,7 @@ export default function Home() {
           {storageNote && <p role="status">{storageNote}</p>}
           <details className="source-details"><summary>查看资料来源与查阅日期</summary><p>名称、地址来自下列资料；体验标签和推荐理由为编辑建议。</p>
             <ul>{detail.sources.map(source => <li key={source.url}><a href={source.url} target="_blank" rel="noopener noreferrer">{source.title} ↗</a>{source.date && <small>资料日期：{source.date}</small>}</li>)}</ul>
+            {detail.geo.status === "verified" && <p>位置资料：<a href={detail.geo.source.url} target="_blank" rel="noopener noreferrer">{detail.geo.source.title} ↗</a>；坐标核对日期：{detail.geo.checkedAt}。此日期不代表营业信息已更新。</p>}
             <p>查阅日期：{detail.checkedAt}。部分来源较早，未进行现场核验。</p>
           </details>
           <DialogClose asChild><Button className="dialog-done">返回候选</Button></DialogClose>
@@ -190,6 +211,7 @@ export default function Home() {
           <div><dt>时间</dt><dd>两小时优先短停留，半天或一天会增加较长活动的优先级。按建议上限预留30分钟余量，不能代替交通计算。三个候选可任选，单个地点不一定能填满半天或一天。</dd></div>
           <div><dt>同行</dt><dd>一个人时倾向自主阅读、观察或看展；朋友同行时倾向用餐或户外活动。家人同行不推定年龄，也不代表已核实无障碍条件。</dd></div>
           <div><dt>心情</dt><dd>依据编辑整理的体验标签。“换点新鲜”按主题特色选择，不代表冷门或人少；“松弛”也不保证安静或免排队。</dd></div>
+          <div><dt>附近找找</dt><dd>仅使用已核对位置的{geoPlaces.length}个地点，根据所选起点和直线半径筛选，再按本次出行条件推荐。距离由地图标记估算，未计算道路、入口和楼层。取消距离限制可查看完整地点库。</dd></div>
           <div><dt>三个不同方向</dt><dd>在条件接近的候选中提供不同体验；同一街区空间和它里面的商户避免同时占位。同等条件按名称稳定展示，全部地点仍可查看。条件变化后保留部分合适地点是正常的。</dd></div>
         </dl>
         <p>目前没有接入实时营业、交通或票务。这些规则只帮助缩小候选范围，尚不能判断你一定会喜欢哪里。</p>

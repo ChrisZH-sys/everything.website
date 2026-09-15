@@ -121,6 +121,14 @@ button {
 .decision-search svg { width: 20px; height: 20px; flex-shrink: 0; }
 .decision-search input { width: 100%; min-width: 0; outline: none; background: transparent; font-size: 16px; }
 .decision-search:focus-within { outline: 2px solid var(--ring); }
+.nearby-controls { display: grid; gap: 16px; padding-top: 20px; border-top: 1px solid var(--border); }
+.nearby-intro strong { display: flex; align-items: center; gap: 8px; }
+.nearby-intro p, .nearby-coverage p { font-size: 14px; color: #52635d; line-height: 1.7; margin-top: 6px; }
+.nearby-origin { display: grid; gap: 8px; font-size: 14px; max-width: 620px; }
+.nearby-origin select { width: 100%; min-width: 0; min-height: 46px; padding: 10px 12px; font: inherit; font-size: 16px; border: 1px solid var(--border); border-radius: 10px; background: #fffdf8; color: inherit; }
+.nearby-origin select:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.nearby-coverage { padding: 14px 18px; background: #edf2ec; border-radius: 12px; margin-bottom: 20px; }
+.nearby-coverage .plain-button { text-decoration: underline; min-height: 44px; }
 .results-nav { display: flex; justify-content: space-between; align-items: center; gap: 14px; }
 .decision-tabs { height: auto; padding: 4px; flex-wrap: wrap; background: #e8e0d2; max-width: 100%; }
 .decision-tabs [data-slot="tabs-trigger"] { min-height: 44px; font-size: 14px; padding: 9px 16px; }
