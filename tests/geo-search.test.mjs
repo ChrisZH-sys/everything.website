@@ -29,12 +29,15 @@ test("radius uses unrounded distance, includes boundary and excludes unknown coo
 test("real origin and radius choices change the pool; removing radius restores all candidates", () => {
   const park = places.find(p => p.id === 6), theatre = places.find(p => p.id === 110);
   const ids = (origin, radius) => withinRadius(places, origin, radius).places.map(p => p.id);
-  assert.deepEqual(ids(park, 500), [6]);
+  assert.ok(ids(park, 500).includes(6));
+  assert.ok(ids(park, 500).includes(222));
+  assert.ok(ids(park, 500).includes(124));
+  assert.ok(!ids(park, 500).includes(103));
   assert.ok(ids(park, 1000).includes(103));
   assert.ok(!ids(park, 1000).includes(110));
   assert.ok(ids(park, 2000).includes(110));
   assert.notDeepEqual(ids(park, 500), ids(theatre, 500));
   assert.equal(withinRadius(places, null, 500).places.length, 60);
-  assert.equal(withinRadius(places, park, 3000).excluded, 55);
-  assert.deepEqual(withinRadius(places.filter(p => p.category === "看"), park, 500).places, []);
+  assert.equal(withinRadius(places, park, 3000).excluded, places.filter(p => p.geo.status === "pending").length);
+  assert.deepEqual(withinRadius(places.filter(p => p.category === "看"), park, 100).places, []);
 });

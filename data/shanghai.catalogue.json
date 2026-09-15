@@ -455,7 +455,7 @@
       "externalRefs": []
     },
     {
-      "checkedAt": "2026-09-11",
+      "checkedAt": "2026-09-15",
       "opening": "当天开放或营业时间未核实；出发前查看场馆、门店公告。",
       "cost": "当前费用未核实；以现场菜单或官方票务为准。",
       "walking": "活动量参考：室内为主",
@@ -464,7 +464,7 @@
       "category": "逛",
       "type": "旅游咨询 · 街区入口",
       "area": "武康—衡山",
-      "address": "武康路393号",
+      "address": "武康路393号甲（徐汇老房子艺术中心）",
       "duration": "建议15–30分钟",
       "moods": [
         "有故事",
@@ -482,6 +482,11 @@
           "title": "上海市政府国际服务门户｜武康路建筑导览",
           "url": "https://english.shanghai.gov.cn/en-ScenicSpots/20231218/596192f5f59048bbbc3fa54d92304e93.html",
           "date": "2025-08-14"
+        },
+        {
+          "title": "上观新闻｜武康路旅游咨询中心暨上海老房子艺术中心",
+          "url": "https://sghexport.shobserver.com/html/baijiahao/2024/07/25/1385762.html",
+          "date": "2024-07-25"
         }
       ],
       "visit": {
@@ -500,17 +505,29 @@
         "basis": "编辑建议"
       },
       "geo": {
-        "status": "pending",
-        "point": null,
-        "source": null,
-        "checkedAt": null
+        "status": "verified",
+        "point": {
+          "latitude": 31.205875,
+          "longitude": 121.439074,
+          "crs": "GCJ-02"
+        },
+        "source": {
+          "title": "高德地图｜徐汇老房子艺术中心（武康路旅游咨询中心）地点位置",
+          "url": "https://www.amap.com/place/B00155QIET"
+        },
+        "checkedAt": "2026-09-15"
       },
       "operations": {
         "status": "not_checked",
         "checkedAt": null,
         "source": null
       },
-      "externalRefs": []
+      "externalRefs": [
+        {
+          "provider": "amap",
+          "placeId": "B00155QIET"
+        }
+      ]
     },
     {
       "checkedAt": "2026-09-11",
@@ -1621,17 +1638,29 @@
         "basis": "编辑建议"
       },
       "geo": {
-        "status": "pending",
-        "point": null,
-        "source": null,
-        "checkedAt": null
+        "status": "verified",
+        "point": {
+          "latitude": 31.204017,
+          "longitude": 121.439062,
+          "crs": "GCJ-02"
+        },
+        "source": {
+          "title": "高德地图｜上海宋庆龄故居纪念馆地点位置",
+          "url": "https://ditu.amap.com/place/B00151EA79"
+        },
+        "checkedAt": "2026-09-15"
       },
       "operations": {
         "status": "not_checked",
         "checkedAt": null,
         "source": null
       },
-      "externalRefs": []
+      "externalRefs": [
+        {
+          "provider": "amap",
+          "placeId": "B00151EA79"
+        }
+      ]
     },
     {
       "checkedAt": "2026-09-11",
@@ -2322,7 +2351,7 @@
     },
     {
       "id": 210,
-      "name": "曹应书房",
+      "name": "草婴书房",
       "category": "看",
       "type": "文学与翻译",
       "area": "武康—衡山",
@@ -2342,12 +2371,16 @@
       "cost": "当前费用待确认；查看菜单、票务或场馆公告。",
       "sources": [
         {
-          "title": "上海市政府国际服务门户｜曹应书房",
+          "title": "上海市政府国际服务门户｜草婴书房",
           "url": "https://english.shanghai.gov.cn/en-BookstoresLibraries/20240522/2555f9794b4c4158816ad54cd9ea5a31.html",
           "date": "2025-08-19"
+        },
+        {
+          "title": "上海徐房集团｜草婴书房名称与地址",
+          "url": "https://www.xufang.cn/product/30.html"
         }
       ],
-      "checkedAt": "2026-09-14",
+      "checkedAt": "2026-09-15",
       "visit": {
         "minutes": [
           45,
@@ -2536,17 +2569,29 @@
         "basis": "编辑建议"
       },
       "geo": {
-        "status": "pending",
-        "point": null,
-        "source": null,
-        "checkedAt": null
+        "status": "verified",
+        "point": {
+          "latitude": 31.206762,
+          "longitude": 121.446169,
+          "crs": "GCJ-02"
+        },
+        "source": {
+          "title": "高德地图｜JZ Club（衡山路店）地点位置",
+          "url": "https://ditu.amap.com/place/B0KGU5Y44N"
+        },
+        "checkedAt": "2026-09-15"
       },
       "operations": {
         "status": "not_checked",
         "checkedAt": null,
         "source": null
       },
-      "externalRefs": []
+      "externalRefs": [
+        {
+          "provider": "amap",
+          "placeId": "B0KGU5Y44N"
+        }
+      ]
     },
     {
       "id": 214,
@@ -3039,17 +3084,29 @@
         "basis": "编辑建议"
       },
       "geo": {
-        "status": "pending",
-        "point": null,
-        "source": null,
-        "checkedAt": null
+        "status": "verified",
+        "point": {
+          "latitude": 31.197401,
+          "longitude": 121.442461,
+          "crs": "GCJ-02"
+        },
+        "source": {
+          "title": "高德地图｜徐家汇公园地点位置",
+          "url": "https://www.amap.com/place/B00155ILI8"
+        },
+        "checkedAt": "2026-09-15"
       },
       "operations": {
         "status": "not_checked",
         "checkedAt": null,
         "source": null
       },
-      "externalRefs": []
+      "externalRefs": [
+        {
+          "provider": "amap",
+          "placeId": "B00155ILI8"
+        }
+      ]
     },
     {
       "id": 223,
@@ -3494,17 +3551,29 @@
         "basis": "编辑建议"
       },
       "geo": {
-        "status": "pending",
-        "point": null,
-        "source": null,
-        "checkedAt": null
+        "status": "verified",
+        "point": {
+          "latitude": 31.212563,
+          "longitude": 121.443329,
+          "crs": "GCJ-02"
+        },
+        "source": {
+          "title": "高德地图｜张乐平故居地点位置",
+          "url": "https://www.amap.com/place/B00155LW7J"
+        },
+        "checkedAt": "2026-09-15"
       },
       "operations": {
         "status": "not_checked",
         "checkedAt": null,
         "source": null
       },
-      "externalRefs": []
+      "externalRefs": [
+        {
+          "provider": "amap",
+          "placeId": "B00155LW7J"
+        }
+      ]
     }
   ]
 }
